@@ -1,0 +1,13 @@
+# Maven 构建产物
+target/
+
+# IDE
+.idea/
+*.iml
+
+# 日志与本地文件
+*.log
+nohup.out
+
+# 本地环境覆盖配置
+application-local.yml

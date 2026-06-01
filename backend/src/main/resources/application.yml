@@ -1,0 +1,40 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: music-share-backend
+
+  # PostgreSQL (对应 docker-compose.dev.yml)
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/music_share
+    username: music
+    password: music123
+
+  # Redis (映射在 6380，避开本机已占用的 6379)
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 3000ms
+
+# MyBatis-Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      # 主键策略：与数据库 IDENTITY 自增对齐
+      id-type: auto
+
+# Actuator：暴露健康检查端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

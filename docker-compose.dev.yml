@@ -1,0 +1,56 @@
+# =====================================================================
+# 在线音乐分享系统 — 本地开发环境依赖 (PostgreSQL + Redis)
+# 用法：docker compose -f docker-compose.dev.yml up -d
+# 说明：
+#   · 本文件仅供开发期跑数据库/缓存依赖；默认名 docker-compose.yml
+#     预留给后续「应用整体部署」的编排。
+#   · PostgreSQL 映射 5432（本机空闲）
+#   · Redis 映射 6380（避开已被 vehicle-redis 占用的 6379）
+#   · 数据用具名 volume 持久化，容器重建不丢数据
+# =====================================================================
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: music-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: music_share
+      POSTGRES_USER: music
+      POSTGRES_PASSWORD: music123
+      # 让中文排序/比较行为正常
+      LANG: C.UTF-8
+      # PG18 默认 PGDATA 路径变更，显式指定以对齐下方 volume 挂载点
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - music_pgdata:/var/lib/postgresql/data
+      # 首次初始化时自动执行(按文件名顺序)：建表→索引→测试数据
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/02_indexes.sql:/docker-entrypoint-initdb.d/02_indexes.sql:ro
+      - ./sql/03_seed.sql:/docker-entrypoint-initdb.d/03_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music -d music_share"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    container_name: music-redis
+    restart: unless-stopped
+    # 开启 AOF 持久化(排行榜 ZSET 重启不丢，见设计文档 7.4)
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - music_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  music_pgdata:
+  music_redisdata:

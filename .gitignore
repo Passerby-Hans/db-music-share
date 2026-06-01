@@ -1,0 +1,38 @@
+# ===== 用户指定不提交的目录 =====
+.claude/
+.idea/
+docs/
+
+# ===== 构建产物 =====
+target/
+build/
+*.class
+*.jar
+*.war
+
+# ===== 日志与临时文件 =====
+*.log
+nohup.out
+app.log
+
+# ===== 本地覆盖配置 =====
+application-local.yml
+*-local.yml
+
+# ===== 误生成的空 npm 文件(后端为 Maven,前端尚未初始化) =====
+/package.json
+/package-lock.json
+/node_modules/
+
+# ===== IDE / 编辑器 =====
+*.iml
+.vscode/
+*.swp
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+
+# ===== Docker 数据卷(若本地挂载) =====
+pgdata/
+redisdata/
