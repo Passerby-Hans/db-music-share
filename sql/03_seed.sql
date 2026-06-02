@@ -6,7 +6,8 @@
 --   1. 主键显式写入(IDENTITY 用 BY DEFAULT，允许显式 ID 以维护外键引用)
 --   2. play_time 用相对时间(CURRENT_TIMESTAMP - INTERVAL)，
 --      保证任何时刻执行，日榜/周榜/总榜都有正确落点的数据
---   3. password 为 bcrypt 密文占位(明文均为 123456 的同一 hash 示例)
+--   3. password 为 bcrypt 密文：所有测试账号明文密码均为 123456
+--      （密文由 bcrypt cost=10 生成，Spring BCryptPasswordEncoder 可校验）
 --   4. 末尾附验证查询，跑完可直接观察排行榜/统计效果
 -- 执行后需校正 IDENTITY 序列(见文件末尾)，否则后续自增会冲突
 -- =====================================================================
@@ -20,16 +21,16 @@ TRUNCATE favorite, playlist_detail, playlist, rating, comment,
 --    role: 0普通 1上传者 2管理员 | status: 0正常 1封禁
 -- --------------------------------------------------------------------
 INSERT INTO app_user (uid, username, password, nickname, email, avatar, role, status, is_deleted) VALUES
-(1,  'admin',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '系统管理员', 'admin@music.com',  '/avatar/1.png', 2, 0, FALSE),
-(2,  'uploader_jay',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '周董',     'jay@music.com',    '/avatar/2.png', 1, 0, FALSE),
-(3,  'uploader_eason','$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '陈奕迅',   'eason@music.com',  '/avatar/3.png', 1, 0, FALSE),
-(4,  'uploader_tyler','$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '泰勒',     'tyler@music.com',  '/avatar/4.png', 1, 0, FALSE),
-(5,  'alice',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '爱丽丝',   'alice@mail.com',   '/avatar/5.png', 0, 0, FALSE),
-(6,  'bob',      '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '小明',     'bob@mail.com',     '/avatar/6.png', 0, 0, FALSE),
-(7,  'carol',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '卡罗尔',   'carol@mail.com',   '/avatar/7.png', 0, 0, FALSE),
-(8,  'david',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '大卫',     'david@mail.com',   '/avatar/8.png', 0, 0, FALSE),
-(9,  'banned_user','$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','被封号的人','banned@mail.com', '/avatar/9.png', 0, 1, FALSE),
-(10, 'ghost',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '已注销用户','ghost@mail.com',  '/avatar/10.png',0, 0, TRUE);
+(1,  'admin',    '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '系统管理员', 'admin@music.com',  '/avatar/1.png', 2, 0, FALSE),
+(2,  'uploader_jay',  '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '周董',     'jay@music.com',    '/avatar/2.png', 1, 0, FALSE),
+(3,  'uploader_eason','$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '陈奕迅',   'eason@music.com',  '/avatar/3.png', 1, 0, FALSE),
+(4,  'uploader_tyler','$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '泰勒',     'tyler@music.com',  '/avatar/4.png', 1, 0, FALSE),
+(5,  'alice',    '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '爱丽丝',   'alice@mail.com',   '/avatar/5.png', 0, 0, FALSE),
+(6,  'bob',      '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '小明',     'bob@mail.com',     '/avatar/6.png', 0, 0, FALSE),
+(7,  'carol',    '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '卡罗尔',   'carol@mail.com',   '/avatar/7.png', 0, 0, FALSE),
+(8,  'david',    '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '大卫',     'david@mail.com',   '/avatar/8.png', 0, 0, FALSE),
+(9,  'banned_user','$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe','被封号的人','banned@mail.com', '/avatar/9.png', 0, 1, FALSE),
+(10, 'ghost',    '$2b$10$5jLFvMMHsuEjRj.WZn6Oa.zHFTMEHDaZa8RE1VqOU0wxKDOYLA3qe', '已注销用户','ghost@mail.com',  '/avatar/10.png',0, 0, TRUE);
 
 -- --------------------------------------------------------------------
 -- 2. 专辑 album（8 个：5 个普通专辑 + 3 个单曲缺省专辑 is_default=true）
