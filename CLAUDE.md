@@ -10,11 +10,18 @@
   方法有方法注释（功能、参数、返回值、异常），关键逻辑行内说明 WHY。
 - Java 用标准 Javadoc 风格（`/** ... */`，`@param`/`@return`/`@throws`）。
 
+## 接口文档规则
+- 每写完一个后端模块的接口，必须补一份**接口文档**，供前端开发对接。
+- 文档放 `docs/api/<模块>.md`（如 `docs/api/user.md`）。**接口文档不提交 git**
+  （`docs/` 已被 .gitignore 忽略，保持现状即可）。
+- 每个接口写明：方法、路径、是否需鉴权/角色、请求头、请求参数（字段/类型/必填/校验）、
+  请求体示例、成功响应示例、可能的错误码与含义。
+
 ## 代码组织约定
 - 后端**按模块分包**：`com.music.<模块名>`（如 `user/`、`song/`、`album/` …），
   每个模块内部各自包含 `controller` / `service` / `mapper` / `entity` 等分层。
 - 三层分工（controller → service → mapper）必须保留，不可合并。
-- 公共基础设施（统一返回体、全局异常、JWT、拦截器、配置等）放在 `com.music.common`。
+- 公共基础设施（统一返回体、全局异常、会话/鉴权拦截器、配置等）放在 `com.music.common`。
 
 ## 技术栈（已定）
 - 后端：Spring Boot 3.4.5 + JDK 21 + MyBatis-Plus 3.5.16
