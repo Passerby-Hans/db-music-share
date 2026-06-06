@@ -38,7 +38,8 @@ CREATE TABLE album (
     introduction TEXT,                                        -- 简介
     is_default   BOOLEAN      NOT NULL DEFAULT FALSE,         -- 是否单曲缺省专辑
     creator_uid  BIGINT       NOT NULL
-                 REFERENCES app_user(uid) ON DELETE CASCADE   -- 创建者
+                 REFERENCES app_user(uid) ON DELETE CASCADE,  -- 创建者
+    is_deleted   BOOLEAN      NOT NULL DEFAULT FALSE          -- 软删除标记(与 song 对称)
 );
 COMMENT ON TABLE album IS '专辑表;is_default=true 表示为单曲自动生成的独立缺省专辑';
 
