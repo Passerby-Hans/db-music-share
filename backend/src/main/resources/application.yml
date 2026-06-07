@@ -19,6 +19,29 @@ spring:
       port: 6380
       timeout: 3000ms
 
+  # 文件上传体积上限(音频较大，单文件放宽到 50MB)
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+
+# 对象存储(MinIO)
+storage:
+  minio:
+    endpoint: http://localhost:9000
+    access-key: music
+    secret-key: music123456
+    # 音频私有桶(走预签名 URL) / 封面公开桶(直链)
+    audio-bucket: music-audio
+    cover-bucket: music-cover
+    # 音频预签名 URL 有效期(秒)，默认 2 小时
+    presigned-expiry-seconds: 7200
+    # 封面直链对外基址(浏览器可访问的 MinIO 地址；与 endpoint 同源)
+    public-base-url: http://localhost:9000
+    # 孤儿文件扫描：安全期(分钟，保护刚上传未建歌的文件) 与 定时清理 cron
+    orphan-safe-minutes: 120
+    orphan-cron: "0 30 4 * * *"
+
 # MyBatis-Plus
 mybatis-plus:
   configuration:

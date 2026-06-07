@@ -51,6 +51,29 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    # 对象存储(音频/封面)。S3 兼容；pin 稳定版而非 latest，保证环境可复现
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: music-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      # 根账号即开发期 access/secret key；密码须 ≥8 位否则拒启
+      MINIO_ROOT_USER: music
+      MINIO_ROOT_PASSWORD: music123456
+    ports:
+      - "9000:9000"   # S3 API(后端 SDK 与预签名 URL 走此端口)
+      - "9001:9001"   # Web 控制台(浏览器查看桶/对象)
+    volumes:
+      - music_miniodata:/data
+    healthcheck:
+      # 官方自带 mc，就绪探针；起得慢时多等几轮
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   music_pgdata:
   music_redisdata:
+  music_miniodata:

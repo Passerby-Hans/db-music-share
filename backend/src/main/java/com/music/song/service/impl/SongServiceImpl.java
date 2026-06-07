@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
+import com.music.common.storage.StorageService;
 import com.music.song.dto.SongDetailVO;
 import com.music.song.dto.SongMoveDTO;
 import com.music.song.dto.SongUpdateDTO;
@@ -42,16 +43,20 @@ public class SongServiceImpl implements SongService {
 
     private final SongMapper songMapper;
     private final AlbumMapper albumMapper;
+    private final com.music.common.storage.StorageService storageService;
 
     /**
      * 构造器注入依赖。
      *
-     * @param songMapper  歌曲数据访问
-     * @param albumMapper 专辑数据访问（校验/新建/清理专辑用）
+     * @param songMapper     歌曲数据访问
+     * @param albumMapper    专辑数据访问（校验/新建/清理专辑用）
+     * @param storageService 对象存储（删歌/换封面时物理删除文件、生成播放 URL）
      */
-    public SongServiceImpl(SongMapper songMapper, AlbumMapper albumMapper) {
+    public SongServiceImpl(SongMapper songMapper, AlbumMapper albumMapper,
+                           com.music.common.storage.StorageService storageService) {
         this.songMapper = songMapper;
         this.albumMapper = albumMapper;
+        this.storageService = storageService;
     }
     /**
      * 上传歌曲（待审）。先按三模式确定/创建专辑，再落库歌曲。
@@ -125,7 +130,9 @@ public class SongServiceImpl implements SongService {
                 || song.getAuditStatus() != AUDIT_PASSED) {
             throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
         }
-        return SongDetailVO.from(song);
+        SongDetailVO vo = SongDetailVO.from(song);
+        vo.setCover(storageService.publicUrl(song.getCover()));
+        return vo;
     }
 
     /**
@@ -147,6 +154,7 @@ public class SongServiceImpl implements SongService {
     @Override
     public void update(Long operatorUid, Integer operatorRole, Long sid, SongUpdateDTO dto) {
         Song song = getOwnedSong(sid, operatorUid, operatorRole);
+        String oldCover = song.getCover();
         song.setTitle(dto.getTitle());
         song.setCover(dto.getCover());
         song.setDuration(dto.getDuration());
@@ -157,6 +165,10 @@ public class SongServiceImpl implements SongService {
             song.setAuditRemark(null);
         }
         songMapper.updateById(song);
+        // 封面被换成不同 key 时，删旧封面文件防悬空（音频不在此改，故不动）
+        if (oldCover != null && !oldCover.equals(dto.getCover())) {
+            storageService.delete(StorageService.BucketType.COVER, oldCover);
+        }
     }
 
     /**
@@ -187,15 +199,37 @@ public class SongServiceImpl implements SongService {
     }
     /**
      * 软删除歌曲：校验归属后置 isDeleted=true；若源专辑为空缺省专辑则一并清理。
+     * 删除即物理删除其音频与封面文件(不悬空、不保留)；文件删除放在 DB 操作之后，
+     * 避免事务回滚却已删文件。
      */
     @Override
     @Transactional
     public void delete(Long operatorUid, Integer operatorRole, Long sid) {
         Song song = getOwnedSong(sid, operatorUid, operatorRole);
         Long sourceAid = song.getAlbumAid();
+        String audioKey = song.getAudioPath();
+        String coverKey = song.getCover();
         song.setIsDeleted(true);
         songMapper.updateById(song);
         cleanupEmptyDefaultAlbum(sourceAid);
+        // DB 落定后再删文件：音频私有桶、封面公开桶
+        storageService.delete(StorageService.BucketType.AUDIO, audioKey);
+        storageService.delete(StorageService.BucketType.COVER, coverKey);
+    }
+
+    /**
+     * 取歌曲音频播放地址：仅口径A可见(已审核未删)才返回限时预签名 URL，否则 404。
+     */
+    @Override
+    public String getPlayUrl(Long sid) {
+        Song song = songMapper.selectById(sid);
+        if (song == null
+                || Boolean.TRUE.equals(song.getIsDeleted())
+                || song.getAuditStatus() == null
+                || song.getAuditStatus() != AUDIT_PASSED) {
+            throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
+        }
+        return storageService.presignedGetUrl(StorageService.BucketType.AUDIO, song.getAudioPath());
     }
 
     /**
@@ -265,7 +299,19 @@ public class SongServiceImpl implements SongService {
      * @return 分页 VO
      */
     private PageVO<SongVO> toPageVO(IPage<Song> result) {
-        List<SongVO> records = result.getRecords().stream().map(SongVO::from).toList();
+        List<SongVO> records = result.getRecords().stream().map(this::toVO).toList();
         return new PageVO<>(records, result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    /**
+     * 实体转列表 VO，并把封面 key 替换为公开直链 URL。
+     *
+     * @param song 歌曲实体
+     * @return 列表项 VO
+     */
+    private SongVO toVO(Song song) {
+        SongVO vo = SongVO.from(song);
+        vo.setCover(storageService.publicUrl(song.getCover()));
+        return vo;
     }
 }

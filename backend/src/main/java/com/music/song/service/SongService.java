@@ -83,4 +83,12 @@ public interface SongService {
      * @param sid          歌曲 sid
      */
     void delete(Long operatorUid, Integer operatorRole, Long sid);
+
+    /**
+     * 取歌曲的音频播放地址（口径A可见才返回）：生成限时预签名 URL。
+     *
+     * @param sid 歌曲 sid
+     * @return 限时可访问的音频 URL
+     */
+    String getPlayUrl(Long sid);
 }

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
+import com.music.common.storage.StorageService;
 import com.music.song.dto.AlbumCreateDTO;
 import com.music.song.dto.AlbumUpdateDTO;
 import com.music.song.dto.AlbumVO;
@@ -38,16 +39,20 @@ public class AlbumServiceImpl implements AlbumService {
 
     private final AlbumMapper albumMapper;
     private final SongMapper songMapper;
+    private final com.music.common.storage.StorageService storageService;
 
     /**
      * 构造器注入依赖。
      *
-     * @param albumMapper 专辑数据访问
-     * @param songMapper  歌曲数据访问（级联删歌、查专辑内曲目用）
+     * @param albumMapper    专辑数据访问
+     * @param songMapper     歌曲数据访问（级联删歌、查专辑内曲目用）
+     * @param storageService 对象存储（级联删专辑时物理删除歌曲文件）
      */
-    public AlbumServiceImpl(AlbumMapper albumMapper, SongMapper songMapper) {
+    public AlbumServiceImpl(AlbumMapper albumMapper, SongMapper songMapper,
+                            com.music.common.storage.StorageService storageService) {
         this.albumMapper = albumMapper;
         this.songMapper = songMapper;
+        this.storageService = storageService;
     }
     /**
      * 新建普通专辑（is_default=false）。
@@ -88,7 +93,7 @@ public class AlbumServiceImpl implements AlbumService {
         if (album == null || Boolean.TRUE.equals(album.getIsDeleted())) {
             throw new BizException(ResultCode.NOT_FOUND, "专辑不存在");
         }
-        return AlbumVO.from(album);
+        return toVO(album);
     }
     /**
      * 某专辑下"口径A可见"的歌曲（已审核 + 未删），按 sid 倒序。
@@ -100,7 +105,7 @@ public class AlbumServiceImpl implements AlbumService {
                 .eq(Song::getAuditStatus, AUDIT_PASSED)
                 .eq(Song::getIsDeleted, false)
                 .orderByDesc(Song::getSid));
-        return songs.stream().map(SongVO::from).toList();
+        return songs.stream().map(this::songToVO).toList();
     }
 
     /**
@@ -142,6 +147,10 @@ public class AlbumServiceImpl implements AlbumService {
     public void delete(Long operatorUid, Integer operatorRole, Long aid) {
         Album album = getExisting(aid);
         checkOwnership(album, operatorUid, operatorRole);
+        // 先查出专辑内未删歌曲，留存其文件 key(用于 DB 落定后物理删除)
+        List<Song> songs = songMapper.selectList(Wrappers.<Song>lambdaQuery()
+                .eq(Song::getAlbumAid, aid)
+                .eq(Song::getIsDeleted, false));
         // 第一步：软删该专辑下所有未删歌曲
         Song songFlag = new Song();
         songFlag.setIsDeleted(true);
@@ -151,6 +160,11 @@ public class AlbumServiceImpl implements AlbumService {
         // 第二步：软删专辑本身
         album.setIsDeleted(true);
         albumMapper.updateById(album);
+        // DB 落定后再删文件，避免回滚却已删文件造成悬空记录指向空文件
+        for (Song s : songs) {
+            storageService.delete(StorageService.BucketType.AUDIO, s.getAudioPath());
+            storageService.delete(StorageService.BucketType.COVER, s.getCover());
+        }
     }
 
     /**
@@ -188,7 +202,31 @@ public class AlbumServiceImpl implements AlbumService {
      * @return 分页 VO
      */
     private PageVO<AlbumVO> toPageVO(IPage<Album> result) {
-        List<AlbumVO> records = result.getRecords().stream().map(AlbumVO::from).toList();
+        List<AlbumVO> records = result.getRecords().stream().map(this::toVO).toList();
         return new PageVO<>(records, result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    /**
+     * 专辑实体转 VO，封面 key 替换为公开直链。
+     *
+     * @param album 专辑实体
+     * @return 专辑 VO
+     */
+    private AlbumVO toVO(Album album) {
+        AlbumVO vo = AlbumVO.from(album);
+        vo.setCover(storageService.publicUrl(album.getCover()));
+        return vo;
+    }
+
+    /**
+     * 歌曲实体转列表 VO，封面 key 替换为公开直链。
+     *
+     * @param song 歌曲实体
+     * @return 歌曲列表 VO
+     */
+    private SongVO songToVO(Song song) {
+        SongVO vo = SongVO.from(song);
+        vo.setCover(storageService.publicUrl(song.getCover()));
+        return vo;
     }
 }

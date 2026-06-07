@@ -77,6 +77,17 @@ public class SongController {
     }
 
     /**
+     * 获取歌曲音频播放地址（口径A可见才返回限时预签名 URL）。
+     *
+     * @param sid 歌曲 sid
+     * @return 限时音频 URL 字符串
+     */
+    @GetMapping("/public/{sid}/play-url")
+    public Result<String> getPlayUrl(@PathVariable Long sid) {
+        return Result.success(songService.getPlayUrl(sid));
+    }
+
+    /**
      * 我的上传（口径B：本人 + 未删，任意审核态），分页。
      *
      * @param page 页码，默认 1
