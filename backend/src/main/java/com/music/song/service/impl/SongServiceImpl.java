@@ -7,6 +7,7 @@ import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
 import com.music.common.storage.StorageService;
+import com.music.song.dto.SongAuditDTO;
 import com.music.song.dto.SongDetailVO;
 import com.music.song.dto.SongMoveDTO;
 import com.music.song.dto.SongUpdateDTO;
@@ -40,6 +41,9 @@ public class SongServiceImpl implements SongService {
 
     /** 审核状态：通过（口径A 可见条件之一）。 */
     private static final int AUDIT_PASSED = 1;
+
+    /** 审核状态：驳回（带驳回理由，前台不可见）。 */
+    private static final int AUDIT_REJECTED = 2;
 
     private final SongMapper songMapper;
     private final AlbumMapper albumMapper;
@@ -230,6 +234,48 @@ public class SongServiceImpl implements SongService {
             throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
         }
         return storageService.presignedGetUrl(StorageService.BucketType.AUDIO, song.getAudioPath());
+    }
+
+    /**
+     * 待审歌曲列表（管理员用）：audit_status=0 且未删，按 sid 倒序分页。
+     */
+    @Override
+    public PageVO<SongVO> listPending(long page, long size) {
+        var wrapper = Wrappers.<Song>lambdaQuery()
+                .eq(Song::getAuditStatus, AUDIT_PENDING)
+                .eq(Song::getIsDeleted, false)
+                .orderByDesc(Song::getSid);
+        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        return toPageVO(result);
+    }
+
+    /**
+     * 审核歌曲（管理员用）：仅对「待审」歌曲操作，通过置 1、驳回置 2 并记录理由。
+     * 已审核过的歌曲（通过/驳回）返回 409，避免误把已上线歌曲打回。
+     */
+    @Override
+    public void audit(Long sid, SongAuditDTO dto) {
+        Song song = songMapper.selectById(sid);
+        if (song == null || Boolean.TRUE.equals(song.getIsDeleted())) {
+            throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
+        }
+        // 只允许审待审态；已通过/已驳回不再受理（如需变更走重新上传或其他流程）
+        if (song.getAuditStatus() == null || song.getAuditStatus() != AUDIT_PENDING) {
+            throw new BizException("该歌曲已审核，无法重复审核");
+        }
+        if (Boolean.TRUE.equals(dto.getPass())) {
+            // 通过：置已审核、清空历史驳回理由
+            song.setAuditStatus(AUDIT_PASSED);
+            song.setAuditRemark(null);
+        } else {
+            // 驳回：理由必填（依赖 pass 取值，单字段注解无法表达，故在此校验）
+            if (dto.getRemark() == null || dto.getRemark().isBlank()) {
+                throw new BizException(ResultCode.BAD_REQUEST, "驳回时必须填写理由");
+            }
+            song.setAuditStatus(AUDIT_REJECTED);
+            song.setAuditRemark(dto.getRemark());
+        }
+        songMapper.updateById(song);
     }
 
     /**

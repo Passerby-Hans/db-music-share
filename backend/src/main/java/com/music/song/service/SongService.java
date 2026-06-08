@@ -1,6 +1,7 @@
 package com.music.song.service;
 
 import com.music.common.result.PageVO;
+import com.music.song.dto.SongAuditDTO;
 import com.music.song.dto.SongDetailVO;
 import com.music.song.dto.SongMoveDTO;
 import com.music.song.dto.SongUpdateDTO;
@@ -91,4 +92,24 @@ public interface SongService {
      * @return 限时可访问的音频 URL
      */
     String getPlayUrl(Long sid);
+
+    /**
+     * 待审歌曲列表（管理员用，口径：auditStatus=0 且未删），按 sid 倒序分页。
+     *
+     * @param page 页码（从 1 起）
+     * @param size 每页条数
+     * @return 分页待审歌曲列表
+     */
+    PageVO<SongVO> listPending(long page, long size);
+
+    /**
+     * 审核歌曲（管理员用）。仅允许对「待审」（auditStatus=0）歌曲操作：
+     * 通过则置 auditStatus=1 并清空理由；驳回则置 auditStatus=2 并记录理由。
+     *
+     * @param sid 歌曲 sid
+     * @param dto 审核参数（pass 必填；驳回时 remark 必填）
+     * @throws com.music.common.exception.BizException 歌曲不存在/已删（404）、
+     *         已审核过（409）、或驳回未填理由（400）
+     */
+    void audit(Long sid, SongAuditDTO dto);
 }
