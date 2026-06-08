@@ -1,6 +1,8 @@
 package com.music.song.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -53,7 +55,12 @@ public class Song {
     /** 审核状态：0 待审 / 1 通过 / 2 驳回。 */
     private Integer auditStatus;
 
-    /** 驳回理由，可空。 */
+    /**
+     * 驳回理由，可空。
+     * {@code updateStrategy=ALWAYS}：审核通过/上传者整改后需把理由清空（置 null），
+     * 默认 NOT_NULL 策略会忽略 null 字段导致旧理由残留，故对本字段强制写入。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String auditRemark;
 
     /** 软删除标记：true 表示已逻辑删除，前台不可见。 */
