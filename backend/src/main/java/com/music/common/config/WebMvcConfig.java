@@ -37,7 +37,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/register",
                         "/api/auth/login",
                         "/api/ping",
-                        "/actuator/**"
+                        "/actuator/**",
+                        // 评论区游客可浏览：某歌主评论列表、某主评论的回复列表
+                        // （注意：发表/删除/我的评论不在此列，仍需登录）
+                        "/api/comment/song/*",
+                        "/api/comment/*/replies"
                 );
     }
 

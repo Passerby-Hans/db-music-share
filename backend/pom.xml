@@ -21,6 +21,9 @@
         <java.version>21</java.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <minio.version>8.5.17</minio.version>
+        <!-- 覆盖 Spring Boot 3.4.5 BOM 锁定的 1.20.6：其捆绑的 docker-java 过旧，
+             与本机 Docker 29.x(API 1.54) 协商失败(/info 返回 400)。1.21.4 修复兼容 -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -81,6 +84,26 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Testcontainers：集成测试起真实 PostgreSQL/Redis/MinIO 容器，
+             版本由 spring-boot-starter-parent 的 BOM 统一管理，无需显式指定 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- PostgreSQL 容器模块（自带 JDBC 就绪等待） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MinIO 无专用模块，用通用 GenericContainer（来自 testcontainers 核心，
+             由 junit-jupiter 传递引入）；Redis 同理走 GenericContainer -->
     </dependencies>
 
     <build>
