@@ -8,6 +8,8 @@ import com.music.comment.dto.CommentCreateDTO;
 import com.music.comment.dto.CommentReplyVO;
 import com.music.comment.dto.CommentVO;
 import com.music.comment.entity.Comment;
+import com.music.comment.entity.CommentLike;
+import com.music.comment.mapper.CommentLikeMapper;
 import com.music.comment.mapper.CommentMapper;
 import com.music.comment.service.CommentService;
 import com.music.common.exception.BizException;
@@ -20,8 +22,10 @@ import com.music.user.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,18 +50,24 @@ public class CommentServiceImpl implements CommentService {
     private static final int SONG_AUDIT_PASSED = 1;
 
     private final CommentMapper commentMapper;
+    private final CommentLikeMapper commentLikeMapper;
     private final SongMapper songMapper;
     private final UserMapper userMapper;
 
     /**
      * 构造器注入依赖。
      *
-     * @param commentMapper 评论数据访问
-     * @param songMapper    歌曲数据访问（发表评论前校验歌曲可见）
-     * @param userMapper    用户数据访问（批量回填评论者昵称/头像）
+     * @param commentMapper     评论数据访问
+     * @param commentLikeMapper 评论点赞数据访问（点赞 CRUD + 批量统计/已赞集合）
+     * @param songMapper        歌曲数据访问（发表评论前校验歌曲可见）
+     * @param userMapper        用户数据访问（批量回填评论者昵称/头像）
      */
-    public CommentServiceImpl(CommentMapper commentMapper, SongMapper songMapper, UserMapper userMapper) {
+    public CommentServiceImpl(CommentMapper commentMapper,
+                              CommentLikeMapper commentLikeMapper,
+                              SongMapper songMapper,
+                              UserMapper userMapper) {
         this.commentMapper = commentMapper;
+        this.commentLikeMapper = commentLikeMapper;
         this.songMapper = songMapper;
         this.userMapper = userMapper;
     }
@@ -102,10 +112,10 @@ public class CommentServiceImpl implements CommentService {
 
     /**
      * 某首歌的主评论分页（parentCid IS NULL），按 cid 倒序（等价时间倒序，新在前）。
-     * 分页后批量回填回复数与评论者信息。
+     * 分页后批量回填回复数、评论者信息、点赞数与"我是否已赞"。
      */
     @Override
-    public PageVO<CommentVO> listBySong(Long sid, long page, long size) {
+    public PageVO<CommentVO> listBySong(Long sid, Long currentUid, long page, long size) {
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getSid, sid)
                 .isNull(Comment::getParentCid)
@@ -113,32 +123,43 @@ public class CommentServiceImpl implements CommentService {
         IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
+        List<Long> cids = records.stream().map(Comment::getCid).toList();
         // 批量取本页主评论的回复数（按 parentCid 分组计数），避免逐条 selectCount
-        Map<Long, Long> replyCountMap = countRepliesByParent(
-                records.stream().map(Comment::getCid).toList());
+        Map<Long, Long> replyCountMap = countRepliesByParent(cids);
+        // 批量取本页评论的点赞数（按 cid 分组计数）
+        Map<Long, Long> likeCountMap = countLikesByComment(cids);
+        // 批量取当前用户在本页评论里点过赞的 cid 集合（游客返回空集）
+        Set<Long> likedSet = likedCidSet(currentUid, cids);
         // 批量取评论者用户信息（昵称/头像），避免逐条查 app_user
         Map<Long, User> userMap = loadUsers(records.stream().map(Comment::getUid).toList());
 
         List<CommentVO> vos = records.stream()
-                .map(c -> toCommentVO(c, replyCountMap.getOrDefault(c.getCid(), 0L), userMap))
+                .map(c -> toCommentVO(c, replyCountMap.getOrDefault(c.getCid(), 0L),
+                        likeCountMap.getOrDefault(c.getCid(), 0L),
+                        likedSet.contains(c.getCid()), userMap))
                 .toList();
         return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
     }
 
     /**
      * 某条主评论下的回复分页（parentCid = 入参），按 cid 升序（先回复在前，盖楼顺读）。
+     * 每项回填点赞数与"我是否已赞"。
      */
     @Override
-    public PageVO<CommentReplyVO> listReplies(Long parentCid, long page, long size) {
+    public PageVO<CommentReplyVO> listReplies(Long parentCid, Long currentUid, long page, long size) {
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getParentCid, parentCid)
                 .orderByAsc(Comment::getCid);
         IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
+        List<Long> cids = records.stream().map(Comment::getCid).toList();
+        Map<Long, Long> likeCountMap = countLikesByComment(cids);
+        Set<Long> likedSet = likedCidSet(currentUid, cids);
         Map<Long, User> userMap = loadUsers(records.stream().map(Comment::getUid).toList());
         List<CommentReplyVO> vos = records.stream()
-                .map(c -> toReplyVO(c, userMap))
+                .map(c -> toReplyVO(c, likeCountMap.getOrDefault(c.getCid(), 0L),
+                        likedSet.contains(c.getCid()), userMap))
                 .toList();
         return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
     }
@@ -162,6 +183,40 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
+     * 点赞一条评论（幂等）。先校验评论存在，再查是否已赞，未赞才插入。
+     * 不限制歌曲可见性：评论既已展示出来即可点赞。
+     */
+    @Override
+    public void like(Long uid, Long cid) {
+        Comment comment = commentMapper.selectById(cid);
+        if (comment == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "评论不存在");
+        }
+        // 幂等：已点赞则直接返回，避免触发 (uid,cid) 唯一约束异常
+        var exists = Wrappers.<CommentLike>lambdaQuery()
+                .eq(CommentLike::getUid, uid)
+                .eq(CommentLike::getCid, cid);
+        if (commentLikeMapper.selectCount(exists) > 0) {
+            return;
+        }
+        CommentLike like = new CommentLike();
+        like.setUid(uid);
+        like.setCid(cid);
+        commentLikeMapper.insert(like);
+    }
+
+    /**
+     * 取消点赞（幂等）。按 (uid,cid) 删除，无记录时影响 0 行亦视为成功。
+     */
+    @Override
+    public void unlike(Long uid, Long cid) {
+        var wrapper = Wrappers.<CommentLike>lambdaQuery()
+                .eq(CommentLike::getUid, uid)
+                .eq(CommentLike::getCid, cid);
+        commentLikeMapper.delete(wrapper);
+    }
+
+    /**
      * 我的评论分页（主评论与回复都算），按 cid 倒序。复用 CommentVO：
      * 主评论回填真实回复数，回复项 replyCount 置 0（回复无下级）。
      */
@@ -179,10 +234,16 @@ public class CommentServiceImpl implements CommentService {
                 .map(Comment::getCid)
                 .toList();
         Map<Long, Long> replyCountMap = countRepliesByParent(parentCids);
+        // 点赞数与"我是否已赞"对主评论与回复都适用，故用全量 cids
+        List<Long> cids = records.stream().map(Comment::getCid).toList();
+        Map<Long, Long> likeCountMap = countLikesByComment(cids);
+        Set<Long> likedSet = likedCidSet(uid, cids);
         Map<Long, User> userMap = loadUsers(records.stream().map(Comment::getUid).toList());
 
         List<CommentVO> vos = records.stream()
-                .map(c -> toCommentVO(c, replyCountMap.getOrDefault(c.getCid(), 0L), userMap))
+                .map(c -> toCommentVO(c, replyCountMap.getOrDefault(c.getCid(), 0L),
+                        likeCountMap.getOrDefault(c.getCid(), 0L),
+                        likedSet.contains(c.getCid()), userMap))
                 .toList();
         return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
     }
@@ -212,6 +273,50 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
+     * 按一批评论 cid 批量统计各自的点赞数（一次 group by 查询）。
+     *
+     * @param cids 评论 cid 列表，空列表直接返回空表（不发查询）
+     * @return cid → 点赞数 的映射；无点赞者不出现在 map 中
+     */
+    private Map<Long, Long> countLikesByComment(List<Long> cids) {
+        if (cids == null || cids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // 同 countRepliesByParent：用列原名 cid 与小写别名 cnt，避开 PG 别名折叠小写的坑
+        QueryWrapper<CommentLike> q = new QueryWrapper<>();
+        q.select("cid", "COUNT(*) AS cnt")
+                .in("cid", cids)
+                .groupBy("cid");
+        List<Map<String, Object>> rows = commentLikeMapper.selectMaps(q);
+        return rows.stream().collect(Collectors.toMap(
+                r -> ((Number) r.get("cid")).longValue(),
+                r -> ((Number) r.get("cnt")).longValue()));
+    }
+
+    /**
+     * 取出当前用户在给定一批评论里点过赞的 cid 集合（一次查询）。
+     *
+     * <p>用于列表回填每项的 likedByMe 标志。游客（{@code currentUid == null}）
+     * 或空评论集直接返回空集，不发查询。</p>
+     *
+     * @param currentUid 当前登录用户 uid；游客传 {@code null}
+     * @param cids       本页评论 cid 列表
+     * @return 当前用户已点赞的 cid 集合
+     */
+    private Set<Long> likedCidSet(Long currentUid, List<Long> cids) {
+        if (currentUid == null || cids == null || cids.isEmpty()) {
+            return Collections.emptySet();
+        }
+        var wrapper = Wrappers.<CommentLike>lambdaQuery()
+                .select(CommentLike::getCid)
+                .eq(CommentLike::getUid, currentUid)
+                .in(CommentLike::getCid, cids);
+        return commentLikeMapper.selectList(wrapper).stream()
+                .map(CommentLike::getCid)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    /**
      * 按一批 uid 批量加载用户，返回 uid→User 映射，供回填昵称/头像。
      *
      * @param uids 评论者 uid 列表（可含重复，会自动去重）
@@ -227,19 +332,23 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
-     * 评论实体转主评论 VO，回填回复数与评论者昵称/头像。
+     * 评论实体转主评论 VO，回填回复数、点赞数、是否已赞与评论者昵称/头像。
      *
      * @param c          评论实体
      * @param replyCount 该评论的回复数
+     * @param likeCount  该评论的实时点赞数
+     * @param likedByMe  当前用户是否已点赞本条评论
      * @param userMap    uid→User 映射（用户可能已删，取不到则昵称/头像为空）
      * @return 主评论 VO
      */
-    private CommentVO toCommentVO(Comment c, long replyCount, Map<Long, User> userMap) {
+    private CommentVO toCommentVO(Comment c, long replyCount, long likeCount,
+                                  boolean likedByMe, Map<Long, User> userMap) {
         CommentVO vo = new CommentVO();
         vo.setCid(c.getCid());
         vo.setUid(c.getUid());
         vo.setContent(c.getContent());
-        vo.setLikeCount(c.getLikeCount());
+        vo.setLikeCount(likeCount);
+        vo.setLikedByMe(likedByMe);
         vo.setReplyCount(replyCount);
         vo.setCreateTime(c.getCreateTime());
         User u = userMap.get(c.getUid());
@@ -251,19 +360,22 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
-     * 评论实体转回复 VO，回填回复者昵称/头像。
+     * 评论实体转回复 VO，回填点赞数、是否已赞与回复者昵称/头像。
      *
-     * @param c       评论实体（回复）
-     * @param userMap uid→User 映射
+     * @param c         评论实体（回复）
+     * @param likeCount 该回复的实时点赞数
+     * @param likedByMe 当前用户是否已点赞本条回复
+     * @param userMap   uid→User 映射
      * @return 回复 VO
      */
-    private CommentReplyVO toReplyVO(Comment c, Map<Long, User> userMap) {
+    private CommentReplyVO toReplyVO(Comment c, long likeCount, boolean likedByMe, Map<Long, User> userMap) {
         CommentReplyVO vo = new CommentReplyVO();
         vo.setCid(c.getCid());
         vo.setParentCid(c.getParentCid());
         vo.setUid(c.getUid());
         vo.setContent(c.getContent());
-        vo.setLikeCount(c.getLikeCount());
+        vo.setLikeCount(likeCount);
+        vo.setLikedByMe(likedByMe);
         vo.setCreateTime(c.getCreateTime());
         User u = userMap.get(c.getUid());
         if (u != null) {

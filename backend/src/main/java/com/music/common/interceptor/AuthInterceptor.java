@@ -1,5 +1,6 @@
 package com.music.common.interceptor;
 
+import com.music.common.annotation.OptionalAuth;
 import com.music.common.annotation.RequireRole;
 import com.music.common.context.UserContext;
 import com.music.common.exception.BizException;
@@ -9,6 +10,7 @@ import com.music.common.session.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -25,8 +27,13 @@ import java.util.Arrays;
  *       比对当前角色是否命中允许集合，不足则抛 403。</li>
  * </ol>
  *
- * <p>放行白名单（注册/登录等公开接口）在 WebMvcConfig 注册时通过
- * {@code excludePathPatterns} 排除，不会进入本拦截器。</p>
+ * <p><b>软鉴权例外</b>：标注 {@link OptionalAuth} 的接口允许游客访问——
+ * 未带 token 直接放行（不绑定用户态）；带有效 token 则照常绑定身份+续期；
+ * 带失效 token 仍抛 401 提示重新登录。软鉴权下不做角色校验。
+ * 用于「公开浏览 + 登录显示个性化信息」类接口（如评论列表的 likedByMe）。</p>
+ *
+ * <p>完全公开的接口（注册/登录/探活）在 WebMvcConfig 注册时通过
+ * {@code excludePathPatterns} 排除，根本不进入本拦截器。</p>
  */
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -56,8 +63,29 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // —— 第 1 段：身份校验 ——
         String sessionId = request.getHeader(TOKEN_HEADER);
+
+        // —— 软鉴权分支：标注 @OptionalAuth 的接口允许游客访问 ——
+        // 方法级注解优先，方法上没有再看类级
+        if (hasAnnotation(handlerMethod, OptionalAuth.class)) {
+            // 完全没带 token = 真游客（从未登录）：放行，不绑定用户态
+            if (!StringUtils.hasText(sessionId)) {
+                return true;
+            }
+            // 带了 token：尝试解析。有效则绑定身份+续期；
+            // 失效/伪造则抛 401——用户曾登录、会话已过期，应提示重新登录，
+            // 而非静默降级为游客（否则其个性化信息如点赞高亮会莫名消失）
+            LoginUser optionalUser = sessionService.getSession(sessionId);
+            if (optionalUser == null) {
+                throw new BizException(ResultCode.UNAUTHORIZED, "登录已过期，请重新登录");
+            }
+            UserContext.set(optionalUser);
+            sessionService.refreshSession(sessionId);
+            // 软鉴权不做角色校验（允许游客，谈不上角色门槛）
+            return true;
+        }
+
+        // —— 第 1 段：身份校验（强鉴权，默认）——
         LoginUser loginUser = sessionService.getSession(sessionId);
         if (loginUser == null) {
             throw new BizException(ResultCode.UNAUTHORIZED, "未登录或登录已过期，请重新登录");
@@ -81,6 +109,19 @@ public class AuthInterceptor implements HandlerInterceptor {
             }
         }
         return true;
+    }
+
+    /**
+     * 判断处理器方法或其所在类是否标注了指定注解（方法级优先于类级）。
+     *
+     * @param handlerMethod  目标处理器方法
+     * @param annotationType 注解类型
+     * @return 方法或类上存在该注解返回 true
+     */
+    private boolean hasAnnotation(HandlerMethod handlerMethod,
+                                  Class<? extends java.lang.annotation.Annotation> annotationType) {
+        return handlerMethod.getMethodAnnotation(annotationType) != null
+                || handlerMethod.getBeanType().isAnnotationPresent(annotationType);
     }
 
     /**

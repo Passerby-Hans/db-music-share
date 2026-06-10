@@ -46,6 +46,7 @@ CREATE INDEX idx_play_time_sid    ON play_record(play_time, sid);
 CREATE INDEX idx_rating_sid       ON rating(sid);          -- 某首歌的平均分/评分数
 CREATE INDEX idx_favorite_sid     ON favorite(sid);        -- 某首歌被多少人收藏
 CREATE INDEX idx_pldetail_sid     ON playlist_detail(sid); -- 某首歌在哪些歌单
+CREATE INDEX idx_comment_like_cid ON comment_like(cid);    -- 某条评论被多少人点赞(列表批量统计)
 
 -- --------------------------------------------------------------------
 -- 4. 模糊搜索 GIN + pg_trgm（支持 LIKE '%关键词%' 走索引）
@@ -72,7 +73,7 @@ CREATE INDEX idx_song_pending     ON song(create_time)
 -- 说明：以下索引已由约束自动创建，无需也不应重复建立——
 --   主键：各表 PRIMARY KEY
 --   唯一：app_user(username)/(email)、rating(uid,sid)、
---         favorite(uid,sid)、playlist_detail(plid,sid)
+--         favorite(uid,sid)、playlist_detail(plid,sid)、comment_like(uid,cid)
 --   其中复合 UNIQUE(uid,sid) 已覆盖按 uid（最左前缀）的查询，
 --   故上文只为右侧的 sid 单独补索引。
 -- =====================================================================

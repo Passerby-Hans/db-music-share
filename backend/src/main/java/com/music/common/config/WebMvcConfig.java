@@ -32,16 +32,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 // 拦截所有 API
                 .addPathPatterns("/api/**")
-                // 放行公开接口：注册、登录、连通性探测、Actuator 健康检查
+                // 放行完全公开接口：注册、登录、连通性探测、Actuator 健康检查
+                // 注意：评论查看接口（某歌主评论/某主评论的回复）不再走白名单，
+                // 改为进入拦截器并由 @OptionalAuth 软鉴权处理——游客放行、登录用户
+                // 识别身份以回填 likedByMe；带失效 token 则提示重新登录。
                 .excludePathPatterns(
                         "/api/auth/register",
                         "/api/auth/login",
                         "/api/ping",
-                        "/actuator/**",
-                        // 评论区游客可浏览：某歌主评论列表、某主评论的回复列表
-                        // （注意：发表/删除/我的评论不在此列，仍需登录）
-                        "/api/comment/song/*",
-                        "/api/comment/*/replies"
+                        "/actuator/**"
                 );
     }
 

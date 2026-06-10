@@ -19,12 +19,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 评论模块 API 集成测试。
  *
- * <p>覆盖 {@code com.music.comment} 的 5 个接口：发表/回复、按歌查主评论、
- * 查回复、我的评论、删除。基于 {@code 03_seed.sql} 的真实种子数据断言：</p>
+ * <p>覆盖 {@code com.music.comment} 的接口：发表/回复、按歌查主评论、
+ * 查回复、我的评论、删除、点赞/取消点赞。基于 {@code 03_seed.sql} 的真实种子数据断言：</p>
  * <ul>
  *   <li>sid=2「晴天」：主评论 cid=1、cid=2；cid=1 下有回复 cid=3、cid=4；</li>
+ *   <li>点赞种子：cid=1 被 uid=5/6/7/8 共 4 人赞、cid=2 被 uid=5/7 赞；</li>
  *   <li>sid=9 待审、sid=12 软删，均不可评论（口径A 不可见）；</li>
- *   <li>账号：admin(uid=1,role=2)、alice(uid=5,role=0)，明文密码均 123456。</li>
+ *   <li>账号：admin(uid=1,role=2)、alice(uid=5,role=0)、bob(uid=6,role=0)，明文密码均 123456。</li>
  * </ul>
  *
  * <p>每个用例由基类 {@code @Transactional} 保证结束回滚，不污染种子数据。
@@ -298,5 +299,143 @@ class CommentApiTest extends AbstractIntegrationTest {
         mockMvc.perform(delete("/api/comment/{cid}", 999999)
                         .header(TOKEN_HEADER, token))
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    // ============================ 评论点赞 ============================
+
+    @Test
+    @DisplayName("点赞评论后：列表点赞数+1 且 likedByMe=true")
+    void likeComment() throws Exception {
+        // bob 对 cid=2（晴天主评论，种子里 bob 未点过）点赞
+        String token = login("bob", "123456");
+        long before = likeCountOf(token, 2L, 2L);
+
+        mockMvc.perform(post("/api/comment/{cid}/like", 2)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        // 再查 sid=2 主评论列表，cid=2 点赞数应 +1 且 likedByMe=true
+        JsonNode rec = findRecord(token, 2L, 2L);
+        assertThat(rec.path("likeCount").asLong()).isEqualTo(before + 1);
+        assertThat(rec.path("likedByMe").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("重复点赞：幂等，点赞数不重复累加")
+    void likeIsIdempotent() throws Exception {
+        String token = login("bob", "123456");
+        // 连点两次
+        like(token, 2L);
+        long after1 = likeCountOf(token, 2L, 2L);
+        like(token, 2L);
+        long after2 = likeCountOf(token, 2L, 2L);
+        assertThat(after2).isEqualTo(after1);
+    }
+
+    @Test
+    @DisplayName("取消点赞后：点赞数-1 且 likedByMe=false")
+    void unlikeComment() throws Exception {
+        // 种子：uid=6(bob) 点过 cid=1。先确认已赞，取消后归零变化
+        String token = login("bob", "123456");
+        JsonNode before = findRecord(token, 2L, 1L);
+        assertThat(before.path("likedByMe").asBoolean()).isTrue();
+        long beforeCount = before.path("likeCount").asLong();
+
+        mockMvc.perform(delete("/api/comment/{cid}/like", 1)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        JsonNode after = findRecord(token, 2L, 1L);
+        assertThat(after.path("likeCount").asLong()).isEqualTo(beforeCount - 1);
+        assertThat(after.path("likedByMe").asBoolean()).isFalse();
+    }
+
+    @Test
+    @DisplayName("取消未点赞的评论：幂等，返回成功")
+    void unlikeWithoutLikeIsIdempotent() throws Exception {
+        // alice(uid=5) 种子里未点过 cid=10
+        String token = login("alice", "123456");
+        mockMvc.perform(delete("/api/comment/{cid}/like", 10)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @DisplayName("点赞不存在的评论：404")
+    void likeMissingComment() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/comment/{cid}/like", 999999)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("未登录点赞：401")
+    void rejectAnonymousLike() throws Exception {
+        mockMvc.perform(post("/api/comment/{cid}/like", 1))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("游客查评论列表：likedByMe 恒为 false（无 token 不报错）")
+    void guestSeesLikedByMeFalse() throws Exception {
+        MvcResult res = mockMvc.perform(get("/api/comment/song/{sid}", 2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        for (JsonNode rec : readJson(res).path("data").path("records")) {
+            // 游客视角：每条都带 likedByMe 字段且为 false
+            assertThat(rec.has("likedByMe")).isTrue();
+            assertThat(rec.path("likedByMe").asBoolean()).isFalse();
+            // 点赞数是真实统计值（非游客身份相关），cid=1 种子有 4 个赞
+            if (rec.path("cid").asLong() == 1L) {
+                assertThat(rec.path("likeCount").asLong()).isGreaterThanOrEqualTo(4);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("带失效 token 查评论列表（软鉴权）：401 提示重新登录")
+    void staleTokenOnOptionalAuthRejected() throws Exception {
+        // 伪造一个不存在的 sessionId：软鉴权下带了 token 但无效 → 401
+        mockMvc.perform(get("/api/comment/song/{sid}", 2)
+                        .header(TOKEN_HEADER, "stale-or-forged-token"))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    /** 点赞快捷方法。 */
+    private void like(String token, long cid) throws Exception {
+        mockMvc.perform(post("/api/comment/{cid}/like", cid)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * 在某歌主评论列表里找到指定 cid 的记录节点（带当前 token 身份，便于读 likedByMe）。
+     *
+     * @param token 会话令牌（影响 likedByMe）
+     * @param sid   歌曲 sid
+     * @param cid   目标主评论 cid
+     * @return 该评论的 JSON 节点
+     */
+    private JsonNode findRecord(String token, long sid, long cid) throws Exception {
+        MvcResult res = mockMvc.perform(get("/api/comment/song/{sid}", sid)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(status().isOk())
+                .andReturn();
+        for (JsonNode rec : readJson(res).path("data").path("records")) {
+            if (rec.path("cid").asLong() == cid) {
+                return rec;
+            }
+        }
+        throw new AssertionError("未在 sid=" + sid + " 主评论列表中找到 cid=" + cid);
+    }
+
+    /** 读取某主评论当前点赞数。 */
+    private long likeCountOf(String token, long sid, long cid) throws Exception {
+        return findRecord(token, sid, cid).path("likeCount").asLong();
     }
 }

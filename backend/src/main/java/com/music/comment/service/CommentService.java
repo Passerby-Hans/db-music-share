@@ -35,24 +35,27 @@ public interface CommentService {
 
     /**
      * 某首歌的主评论分页（parentCid 为空者），按时间倒序（新评论在前）。
-     * 每项带回复数与评论者昵称/头像。
+     * 每项带回复数、评论者昵称/头像、点赞数与"我是否已赞"。
      *
-     * @param sid  歌曲 sid
-     * @param page 页码（从 1 起）
-     * @param size 每页条数
+     * @param sid        歌曲 sid
+     * @param currentUid 当前登录用户 uid，用于回填 likedByMe；游客查看传 {@code null}
+     * @param page       页码（从 1 起）
+     * @param size       每页条数
      * @return 分页主评论列表
      */
-    PageVO<CommentVO> listBySong(Long sid, long page, long size);
+    PageVO<CommentVO> listBySong(Long sid, Long currentUid, long page, long size);
 
     /**
      * 某条主评论下的回复分页，按时间正序（先回复在前，符合盖楼阅读习惯）。
+     * 每项带点赞数与"我是否已赞"。
      *
-     * @param parentCid 主评论 cid
-     * @param page      页码（从 1 起）
-     * @param size      每页条数
+     * @param parentCid  主评论 cid
+     * @param currentUid 当前登录用户 uid，用于回填 likedByMe；游客查看传 {@code null}
+     * @param page       页码（从 1 起）
+     * @param size       每页条数
      * @return 分页回复列表
      */
-    PageVO<CommentReplyVO> listReplies(Long parentCid, long page, long size);
+    PageVO<CommentReplyVO> listReplies(Long parentCid, Long currentUid, long page, long size);
 
     /**
      * 删除评论：仅作者本人或管理员可删。删主评论时其下回复由 DB 级联删除。
@@ -66,10 +69,31 @@ public interface CommentService {
     /**
      * 我的评论分页（含主评论与回复），按时间倒序，供用户管理自己的评论。
      *
-     * @param uid  当前用户 uid
+     * @param uid  当前用户 uid（同时作为 likedByMe 的判定主体）
      * @param page 页码（从 1 起）
      * @param size 每页条数
      * @return 分页评论列表（复用 CommentVO，回复项 replyCount 恒为 0）
      */
     PageVO<CommentVO> listMine(Long uid, long page, long size);
+
+    /**
+     * 点赞一条评论（幂等）。
+     *
+     * <p>评论须存在，否则抛 404。若该用户已点赞过同一条评论，则不重复插入、
+     * 直接视为成功（幂等），既防住 {@code (uid,cid)} 唯一约束冲突，
+     * 也契合"再点一次赞"的前端语义。</p>
+     *
+     * @param uid 操作者 uid（服务端会话）
+     * @param cid 评论 cid
+     * @throws com.music.common.exception.BizException 评论不存在时抛 404
+     */
+    void like(Long uid, Long cid);
+
+    /**
+     * 取消点赞（幂等）。删除该用户对该评论的点赞记录，无记录时影响 0 行亦视为成功。
+     *
+     * @param uid 操作者 uid（服务端会话）
+     * @param cid 评论 cid
+     */
+    void unlike(Long uid, Long cid);
 }

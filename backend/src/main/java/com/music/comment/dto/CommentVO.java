@@ -29,8 +29,17 @@ public class CommentVO {
     /** 评论正文。 */
     private String content;
 
-    /** 冗余点赞数（当前恒为 0，占位）。 */
-    private Integer likeCount;
+    /**
+     * 点赞数（实时 COUNT(*) 统计，非冗余字段）。
+     * 由 Service 层按 cid 批量聚合 comment_like 后回填。
+     */
+    private Long likeCount;
+
+    /**
+     * 当前登录用户是否已点赞本条评论。
+     * 游客（未登录）查看时恒为 {@code false}；供前端渲染点赞按钮高亮态。
+     */
+    private Boolean likedByMe;
 
     /** 该主评论下的回复数量。 */
     private Long replyCount;
@@ -78,12 +87,20 @@ public class CommentVO {
         this.content = content;
     }
 
-    public Integer getLikeCount() {
+    public Long getLikeCount() {
         return likeCount;
     }
 
-    public void setLikeCount(Integer likeCount) {
+    public void setLikeCount(Long likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public Boolean getLikedByMe() {
+        return likedByMe;
+    }
+
+    public void setLikedByMe(Boolean likedByMe) {
+        this.likedByMe = likedByMe;
     }
 
     public Long getReplyCount() {

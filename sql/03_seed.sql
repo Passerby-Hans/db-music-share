@@ -13,7 +13,7 @@
 -- =====================================================================
 
 -- 清空(按依赖逆序)，便于重复执行本脚本
-TRUNCATE favorite, playlist_detail, playlist, rating, comment,
+TRUNCATE comment_like, favorite, playlist_detail, playlist, rating, comment,
          play_record, song, album, app_user RESTART IDENTITY CASCADE;
 
 -- --------------------------------------------------------------------
@@ -206,7 +206,33 @@ INSERT INTO favorite (uid, sid, fav_time) VALUES
 (7, 8, CURRENT_TIMESTAMP - INTERVAL '4 days'),
 (8, 2, CURRENT_TIMESTAMP - INTERVAL '3 days'),
 (8, 1, CURRENT_TIMESTAMP - INTERVAL '2 days'),
-(6, 7, CURRENT_TIMESTAMP - INTERVAL '1 day');
+(6, 7, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+-- carol(uid=7) 收藏了 sid=12「已下架的歌」：收藏发生在下架前，
+-- 现该歌 is_deleted=true。用于验证"收藏列表仍展示失效歌、但 playable=false"
+(7, 12, CURRENT_TIMESTAMP - INTERVAL '12 days');
+
+-- --------------------------------------------------------------------
+-- 9b. 评论点赞 comment_like（用户 n:m 评论；(uid,cid) 唯一，不可重复点赞）
+--     点赞数实时 COUNT(*) 统计，与 comment.like_count 冗余字段无关。
+--     覆盖：主评论被多人赞、回复也可被赞；故意让某用户既点过赞又没点过，
+--     便于验证列表里 likedByMe 标志逐条正确。
+--     仅用正常普通用户(5/6/7/8)，避开封禁(9)与软删(10)。
+-- --------------------------------------------------------------------
+INSERT INTO comment_like (uid, cid, like_time) VALUES
+-- cid=1（晴天主评论）热门：4 人点赞
+(5, 1, CURRENT_TIMESTAMP - INTERVAL '4 days'),
+(6, 1, CURRENT_TIMESTAMP - INTERVAL '4 days'),
+(7, 1, CURRENT_TIMESTAMP - INTERVAL '3 days'),
+(8, 1, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+-- cid=2（晴天主评论）：2 人点赞
+(5, 2, CURRENT_TIMESTAMP - INTERVAL '3 days'),
+(7, 2, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+-- cid=3（回复也能被点赞）：1 人点赞
+(8, 3, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+-- cid=5（告白气球主评论）：1 人点赞
+(6, 5, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+-- cid=7（浮夸主评论）：1 人点赞
+(5, 7, CURRENT_TIMESTAMP - INTERVAL '1 day');
 
 -- =====================================================================
 -- 10. 对账：用 play_record 实际行数回填冗余字段 song.play_count
@@ -230,6 +256,7 @@ SELECT setval(pg_get_serial_sequence('rating','rid'),          (SELECT MAX(rid) 
 SELECT setval(pg_get_serial_sequence('playlist','plid'),       (SELECT MAX(plid) FROM playlist));
 SELECT setval(pg_get_serial_sequence('playlist_detail','pdid'),(SELECT MAX(pdid) FROM playlist_detail));
 SELECT setval(pg_get_serial_sequence('favorite','fid'),        (SELECT MAX(fid)  FROM favorite));
+SELECT setval(pg_get_serial_sequence('comment_like','clid'),   (SELECT MAX(clid) FROM comment_like));
 
 -- =====================================================================
 -- 12. 验证查询（可选执行，用于观察排行榜与统计效果）

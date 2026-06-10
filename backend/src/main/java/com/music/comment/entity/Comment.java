@@ -44,9 +44,10 @@ public class Comment {
     private String content;
 
     /**
-     * 冗余点赞数。
-     * 当前模块未实现点赞（schema 无点赞关系表，无法防重复/取消），
-     * 故恒为 0，作展示占位；点赞功能留待后续随收藏模块评估补表实现。
+     * 冗余点赞数（<strong>历史遗留字段，已弃用</strong>）。
+     * 点赞功能改由独立关系表 {@code comment_like} 承载，点赞数一律实时
+     * {@code COUNT(*)} 统计（可防重复点赞/支持取消，单靠本计数器做不到）。
+     * 本字段不再读取，仅因 DB 列 NOT NULL 而在插入时写入默认 0。
      */
     private Integer likeCount;
 
