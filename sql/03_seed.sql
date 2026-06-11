@@ -186,6 +186,9 @@ INSERT INTO playlist_detail (plid, sid, add_time) VALUES
 (1, 8, CURRENT_TIMESTAMP - INTERVAL '9 days'),
 (2, 2, CURRENT_TIMESTAMP - INTERVAL '14 days'),
 (2, 4, CURRENT_TIMESTAMP - INTERVAL '13 days'),
+-- alice 私密歌单 plid=2 收录 sid=12「已下架的歌」：收录发生在下架前，
+-- 用于验证歌单详情对失效歌曲"不剔除、仅标 playable=false"的策略（同收藏模块）
+(2, 12, CURRENT_TIMESTAMP - INTERVAL '12 days'),
 (3, 5, CURRENT_TIMESTAMP - INTERVAL '11 days'),
 (3, 6, CURRENT_TIMESTAMP - INTERVAL '11 days'),
 (4, 4, CURRENT_TIMESTAMP - INTERVAL '7 days'),
