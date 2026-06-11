@@ -48,19 +48,23 @@ public class SongServiceImpl implements SongService {
     private final SongMapper songMapper;
     private final AlbumMapper albumMapper;
     private final com.music.common.storage.StorageService storageService;
+    private final com.music.common.storage.DeferredStorageCleaner storageCleaner;
 
     /**
      * 构造器注入依赖。
      *
      * @param songMapper     歌曲数据访问
      * @param albumMapper    专辑数据访问（校验/新建/清理专辑用）
-     * @param storageService 对象存储（删歌/换封面时物理删除文件、生成播放 URL）
+     * @param storageService 对象存储（生成播放/封面 URL）
+     * @param storageCleaner 延迟删除器（删歌/换封面时在事务提交后物理删文件）
      */
     public SongServiceImpl(SongMapper songMapper, AlbumMapper albumMapper,
-                           com.music.common.storage.StorageService storageService) {
+                           com.music.common.storage.StorageService storageService,
+                           com.music.common.storage.DeferredStorageCleaner storageCleaner) {
         this.songMapper = songMapper;
         this.albumMapper = albumMapper;
         this.storageService = storageService;
+        this.storageCleaner = storageCleaner;
     }
     /**
      * 上传歌曲（待审）。先按三模式确定/创建专辑，再落库歌曲。
@@ -169,9 +173,10 @@ public class SongServiceImpl implements SongService {
             song.setAuditRemark(null);
         }
         songMapper.updateById(song);
-        // 封面被换成不同 key 时，删旧封面文件防悬空（音频不在此改，故不动）
+        // 封面被换成不同 key 时，删旧封面文件防悬空（音频不在此改，故不动）。
+        // 经延迟删除器：本方法虽无显式事务，cleaner 在无事务时即时删、失败仅记日志兜底
         if (oldCover != null && !oldCover.equals(dto.getCover())) {
-            storageService.delete(StorageService.BucketType.COVER, oldCover);
+            storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, oldCover);
         }
     }
 
@@ -203,8 +208,9 @@ public class SongServiceImpl implements SongService {
     }
     /**
      * 软删除歌曲：校验归属后置 isDeleted=true；若源专辑为空缺省专辑则一并清理。
-     * 删除即物理删除其音频与封面文件(不悬空、不保留)；文件删除放在 DB 操作之后，
-     * 避免事务回滚却已删文件。
+     * 删除即物理删除其音频与封面文件(不悬空、不保留)；文件删除经延迟删除器挂到
+     * <b>事务提交后</b>执行，确保 DB 真正落定才删文件——若事务回滚则文件保留，
+     * 杜绝"记录回滚但文件已删"的丢失。
      */
     @Override
     @Transactional
@@ -216,9 +222,9 @@ public class SongServiceImpl implements SongService {
         song.setIsDeleted(true);
         songMapper.updateById(song);
         cleanupEmptyDefaultAlbum(sourceAid);
-        // DB 落定后再删文件：音频私有桶、封面公开桶
-        storageService.delete(StorageService.BucketType.AUDIO, audioKey);
-        storageService.delete(StorageService.BucketType.COVER, coverKey);
+        // 注册提交后删除：音频私有桶、封面公开桶。事务回滚则不触发，文件得以保留
+        storageCleaner.deleteAfterCommit(StorageService.BucketType.AUDIO, audioKey);
+        storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, coverKey);
     }
 
     /**

@@ -437,4 +437,67 @@ class UserApiTest extends AbstractIntegrationTest {
                         .content("{\"nickname\":\"爱丽丝\",\"avatar\":\"" + longAvatar + "\"}"))
                 .andExpect(jsonPath("$.code").value(400));
     }
+
+    // ============ 改密作废会话（对抗性审查 F1 回归） ============
+    // 背景：鉴权完全依赖 Redis 缓存的登录态。改密码原先只更新 DB、不动会话，
+    // 导致改密前签发的旧令牌仍能继续访问——密码若已泄露，旧会话仍是活口。
+    // 修复：改密成功后作废该用户全部会话（deleteSessionsByUid），旧令牌即时失效。
+
+    @Test
+    @DisplayName("改密后旧令牌即时失效：同一 token 改密前可用、改密后访问受保护接口 401")
+    void changePasswordRevokesOldToken() throws Exception {
+        // bob 登录拿到旧令牌
+        String oldToken = login("bob", "123456");
+        // 改密前：旧令牌可正常访问个人中心
+        mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, oldToken))
+                .andExpect(jsonPath("$.code").value(200));
+        // 改密码（用同一旧令牌发起）
+        mockMvc.perform(put("/api/user/password")
+                        .header(TOKEN_HEADER, oldToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"oldPassword":"123456","newPassword":"newpass888"}
+                                """))
+                .andExpect(jsonPath("$.code").value(200));
+        // 改密后：旧令牌(含本次所用会话)被作废，再访问受保护接口 401
+        mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, oldToken))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("改密作废该用户全部会话：另一设备的旧令牌同样即时失效")
+    void changePasswordRevokesAllSessionsOfUser() throws Exception {
+        // 模拟 bob 两处登录，得到两个独立会话令牌
+        String tokenA = login("bob", "123456");
+        String tokenB = login("bob", "123456");
+        // 用 tokenA 改密
+        mockMvc.perform(put("/api/user/password")
+                        .header(TOKEN_HEADER, tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"oldPassword":"123456","newPassword":"newpass888"}
+                                """))
+                .andExpect(jsonPath("$.code").value(200));
+        // 另一设备的 tokenB 也应被一并作废（按 uid 批量删会话），访问 401
+        mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, tokenB))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("改密不波及其他用户会话：alice 改密不影响 bob 的令牌")
+    void changePasswordDoesNotAffectOtherUsers() throws Exception {
+        String bobToken = login("bob", "123456");
+        String aliceToken = login("alice", "123456");
+        // alice 改密
+        mockMvc.perform(put("/api/user/password")
+                        .header(TOKEN_HEADER, aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"oldPassword":"123456","newPassword":"alicenew9"}
+                                """))
+                .andExpect(jsonPath("$.code").value(200));
+        // bob 的令牌不受影响，仍可正常访问（作废按 uid 精确隔离）
+        mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, bobToken))
+                .andExpect(jsonPath("$.code").value(200));
+    }
 }

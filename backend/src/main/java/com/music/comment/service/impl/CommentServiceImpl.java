@@ -79,13 +79,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public Long create(Long uid, CommentCreateDTO dto) {
         // 只能评论"公开可见"的歌曲（已审核且未删），否则视为不存在
-        Song song = songMapper.selectById(dto.getSid());
-        if (song == null
-                || Boolean.TRUE.equals(song.getIsDeleted())
-                || song.getAuditStatus() == null
-                || song.getAuditStatus() != SONG_AUDIT_PASSED) {
-            throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
-        }
+        requireVisibleSong(dto.getSid());
         // 回复场景：校验父评论。两层盖楼——父必须是该歌下的"主评论"
         if (dto.getParentCid() != null) {
             Comment parent = commentMapper.selectById(dto.getParentCid());
@@ -113,9 +107,14 @@ public class CommentServiceImpl implements CommentService {
     /**
      * 某首歌的主评论分页（parentCid IS NULL），按 cid 倒序（等价时间倒序，新在前）。
      * 分页后批量回填回复数、评论者信息、点赞数与"我是否已赞"。
+     *
+     * <p>进入前先校验歌曲口径A可见：歌曲被改回待审/驳回/软删后，其评论
+     * 应随歌曲一同"消失"（404），不能再被匿名枚举 sid 拉取，避免泄露已下架歌曲的评论内容。</p>
      */
     @Override
     public PageVO<CommentVO> listBySong(Long sid, Long currentUid, long page, long size) {
+        // 歌曲不可见则视为不存在，连带其评论一并 404（与歌曲详情接口口径一致）
+        requireVisibleSong(sid);
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getSid, sid)
                 .isNull(Comment::getParentCid)
@@ -144,9 +143,20 @@ public class CommentServiceImpl implements CommentService {
     /**
      * 某条主评论下的回复分页（parentCid = 入参），按 cid 升序（先回复在前，盖楼顺读）。
      * 每项回填点赞数与"我是否已赞"。
+     *
+     * <p>进入前先经父评论定位其所属歌曲并校验口径A可见：父评论不存在、
+     * 或其歌曲已下架（待审/驳回/软删）时一律 404，防止绕过歌曲可见性直接按
+     * parentCid 拉取已下架歌曲的回复。</p>
      */
     @Override
     public PageVO<CommentReplyVO> listReplies(Long parentCid, Long currentUid, long page, long size) {
+        // 先定位父评论，拿到其所属歌曲；父评论不存在视为 404
+        Comment parent = commentMapper.selectById(parentCid);
+        if (parent == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "评论不存在");
+        }
+        // 父评论所属歌曲不可见则连带其回复一并 404
+        requireVisibleSong(parent.getSid());
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getParentCid, parentCid)
                 .orderByAsc(Comment::getCid);
@@ -246,6 +256,25 @@ public class CommentServiceImpl implements CommentService {
                         likedSet.contains(c.getCid()), userMap))
                 .toList();
         return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    /**
+     * 校验歌曲处于口径A可见状态（已审核通过且未软删），否则抛 404。
+     *
+     * <p>评论的发表与读取都以此为前提：歌曲一旦下架（改回待审/被驳回/软删），
+     * 其评论与回复应随之不可见，与歌曲详情接口的 404 口径保持一致。</p>
+     *
+     * @param sid 歌曲 sid
+     * @throws BizException 歌曲不存在或不可见时抛 {@link ResultCode#NOT_FOUND}
+     */
+    private void requireVisibleSong(Long sid) {
+        Song song = songMapper.selectById(sid);
+        if (song == null
+                || Boolean.TRUE.equals(song.getIsDeleted())
+                || song.getAuditStatus() == null
+                || song.getAuditStatus() != SONG_AUDIT_PASSED) {
+            throw new BizException(ResultCode.NOT_FOUND, "歌曲不存在");
+        }
     }
 
     /**

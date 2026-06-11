@@ -551,4 +551,62 @@ class CommentApiTest extends AbstractIntegrationTest {
     private long likeCountOf(String token, long sid, long cid) throws Exception {
         return findRecord(token, sid, cid).path("likeCount").asLong();
     }
+
+    // ============ 歌曲可见性约束读路径（对抗性审查 F4 回归） ============
+    // 背景：评论的"发表"早已校验歌曲口径A可见，但"读取"(按歌查主评论 / 按父评论查回复)
+    // 一度直接按 sid/parentCid 查库、未校验歌曲可见性。导致歌曲被改回待审/驳回/软删后，
+    // 匿名者仍可凭 sid 或 cid 枚举拉取其残留评论，泄露已下架内容。以下用例锁定该缺口已修复。
+
+    @Test
+    @DisplayName("查待审歌曲(sid=9)的主评论：404（不可见歌曲评论不可枚举）")
+    void listCommentsOfPendingSong() throws Exception {
+        // sid=9 审核态=待审，口径A 不可见；其评论列表应与歌曲详情同口径 404
+        mockMvc.perform(get("/api/comment/song/{sid}", 9))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("查软删歌曲(sid=12)的主评论：404")
+    void listCommentsOfDeletedSong() throws Exception {
+        // sid=12 已软删，口径A 不可见
+        mockMvc.perform(get("/api/comment/song/{sid}", 12))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("歌曲下架后其主评论读路径由可见转 404：admin 软删 sid=2 后再查")
+    void songCommentsBecomeInvisibleAfterTakedown() throws Exception {
+        // 下架前：sid=2 可见，主评论列表正常返回
+        mockMvc.perform(get("/api/comment/song/{sid}", 2))
+                .andExpect(jsonPath("$.code").value(200));
+        // admin 软删 sid=2（管理员越过归属校验）
+        String admin = login("admin", "123456");
+        mockMvc.perform(delete("/api/song/{sid}", 2).header(TOKEN_HEADER, admin))
+                .andExpect(jsonPath("$.code").value(200));
+        // 下架后：同一 sid 的主评论列表转 404，残留评论不再可枚举
+        mockMvc.perform(get("/api/comment/song/{sid}", 2))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("歌曲下架后其回复读路径转 404：admin 软删 sid=2 后查 cid=1 的回复")
+    void replyListBecomesInvisibleAfterTakedown() throws Exception {
+        // 下架前：cid=1(属 sid=2)的回复列表正常
+        mockMvc.perform(get("/api/comment/{cid}/replies", 1))
+                .andExpect(jsonPath("$.code").value(200));
+        // admin 软删该评论所属歌曲 sid=2
+        String admin = login("admin", "123456");
+        mockMvc.perform(delete("/api/song/{sid}", 2).header(TOKEN_HEADER, admin))
+                .andExpect(jsonPath("$.code").value(200));
+        // 下架后：经父评论定位到不可见歌曲，回复列表转 404
+        mockMvc.perform(get("/api/comment/{cid}/replies", 1))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("查不存在父评论的回复：404（父评论缺失即拒绝，不返回空列表）")
+    void listRepliesOfMissingParent() throws Exception {
+        mockMvc.perform(get("/api/comment/{cid}/replies", 999999))
+                .andExpect(jsonPath("$.code").value(404));
+    }
 }

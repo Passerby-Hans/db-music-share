@@ -40,19 +40,23 @@ public class AlbumServiceImpl implements AlbumService {
     private final AlbumMapper albumMapper;
     private final SongMapper songMapper;
     private final com.music.common.storage.StorageService storageService;
+    private final com.music.common.storage.DeferredStorageCleaner storageCleaner;
 
     /**
      * 构造器注入依赖。
      *
      * @param albumMapper    专辑数据访问
      * @param songMapper     歌曲数据访问（级联删歌、查专辑内曲目用）
-     * @param storageService 对象存储（级联删专辑时物理删除歌曲文件）
+     * @param storageService 对象存储（生成封面公开直链）
+     * @param storageCleaner 延迟删除器（级联删专辑时在事务提交后物理删歌曲文件）
      */
     public AlbumServiceImpl(AlbumMapper albumMapper, SongMapper songMapper,
-                            com.music.common.storage.StorageService storageService) {
+                            com.music.common.storage.StorageService storageService,
+                            com.music.common.storage.DeferredStorageCleaner storageCleaner) {
         this.albumMapper = albumMapper;
         this.songMapper = songMapper;
         this.storageService = storageService;
+        this.storageCleaner = storageCleaner;
     }
     /**
      * 新建普通专辑（is_default=false）。
@@ -160,10 +164,10 @@ public class AlbumServiceImpl implements AlbumService {
         // 第二步：软删专辑本身
         album.setIsDeleted(true);
         albumMapper.updateById(album);
-        // DB 落定后再删文件，避免回滚却已删文件造成悬空记录指向空文件
+        // 注册提交后删除各歌曲文件：事务成功提交才删，回滚则全部保留，杜绝悬空记录指向空文件
         for (Song s : songs) {
-            storageService.delete(StorageService.BucketType.AUDIO, s.getAudioPath());
-            storageService.delete(StorageService.BucketType.COVER, s.getCover());
+            storageCleaner.deleteAfterCommit(StorageService.BucketType.AUDIO, s.getAudioPath());
+            storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, s.getCover());
         }
     }
 

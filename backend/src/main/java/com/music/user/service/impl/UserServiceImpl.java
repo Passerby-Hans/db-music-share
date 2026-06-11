@@ -142,6 +142,10 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 修改密码：校验旧密码后更新为新密码的 bcrypt 密文。
+     *
+     * <p>改密成功后<b>作废该用户全部会话</b>（含本次操作所用的当前会话）：
+     * 密码变更意味着旧凭据应全部失效，所有已登录设备需重新登录，
+     * 防止密码可能已泄露的旧会话继续被使用。前端在改密后应引导重新登录。</p>
      */
     @Override
     public void updatePassword(Long uid, UpdatePasswordDTO dto) {
@@ -152,5 +156,7 @@ public class UserServiceImpl implements UserService {
         }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userMapper.updateById(user);
+        // 改密后作废该用户所有会话，旧令牌即时失效（须重新登录）
+        sessionService.deleteSessionsByUid(uid);
     }
 }
