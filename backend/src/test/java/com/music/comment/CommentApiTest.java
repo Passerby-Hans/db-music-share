@@ -406,6 +406,119 @@ class CommentApiTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value(401));
     }
 
+    // ============================ 校验与分支补充 ============================
+
+    @Test
+    @DisplayName("评论内容超长(>500)：400")
+    void rejectContentTooLong() throws Exception {
+        String token = login("alice", "123456");
+        String longContent = "字".repeat(501);
+        mockMvc.perform(post("/api/comment")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sid\":2,\"content\":\"" + longContent + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("发评论缺 sid 字段：400（@NotNull）")
+    void rejectMissingSid() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/comment")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"content":"没带 sid"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("回复不存在的父评论：404")
+    void replyToMissingParent() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/comment")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sid":2,"content":"回复幽灵","parentCid":999999}
+                                """))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("回复的父评论属于另一首歌：400")
+    void replyToParentOfOtherSong() throws Exception {
+        // cid=5 属于 sid=7；此处声称对 sid=2 回复 cid=5 → 不一致
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/comment")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sid":2,"content":"跨歌回复","parentCid":5}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("对已软删歌(sid=12)发评论：404（命中 isDeleted 分支）")
+    void commentOnDeletedSong() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/comment")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sid":12,"content":"给下架歌评论"}
+                                """))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("删除主评论级联删其回复：cid=1 删后回复列表为空")
+    void deleteParentCascadesReplies() throws Exception {
+        // cid=1（alice 主评论）下挂 cid=3、cid=4 两条回复
+        String token = login("alice", "123456");
+        // 删前回复数 >=2
+        MvcResult before = mockMvc.perform(get("/api/comment/{cid}/replies", 1))
+                .andReturn();
+        assertThat(readJson(before).path("data").path("total").asLong()).isGreaterThanOrEqualTo(2);
+        // 删主评论
+        mockMvc.perform(delete("/api/comment/{cid}", 1).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200));
+        // 回复被级联删除
+        MvcResult after = mockMvc.perform(get("/api/comment/{cid}/replies", 1))
+                .andReturn();
+        assertThat(readJson(after).path("data").path("total").asLong()).isZero();
+    }
+
+    @Test
+    @DisplayName("登录用户主评论列表 likedByMe 逐行正确：bob 赞过 cid=1 未赞 cid=2")
+    void likedByMeRowAccuracy() throws Exception {
+        // bob(uid=6) 种子点过 cid=1，未点 cid=2
+        String token = login("bob", "123456");
+        assertThat(findRecord(token, 2, 1).path("likedByMe").asBoolean()).isTrue();
+        assertThat(findRecord(token, 2, 2).path("likedByMe").asBoolean()).isFalse();
+    }
+
+    @Test
+    @DisplayName("我的评论回填 replyCount/likeCount/likedByMe：alice 的 cid=1")
+    void myCommentsBackfill() throws Exception {
+        // alice(uid=5) 的主评论 cid=1：挂 2 条回复、被 4 人赞、本人也赞过
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/comment/mine")
+                        .header(TOKEN_HEADER, token).param("size", "50"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode target = null;
+        for (JsonNode rec : readJson(res).path("data").path("records")) {
+            if (rec.path("cid").asLong() == 1L) { target = rec; break; }
+        }
+        assertThat(target).isNotNull();
+        assertThat(target.path("replyCount").asLong()).isGreaterThanOrEqualTo(2);
+        assertThat(target.path("likeCount").asLong()).isGreaterThanOrEqualTo(4);
+        assertThat(target.path("likedByMe").asBoolean()).isTrue();
+    }
+
     /** 点赞快捷方法。 */
     private void like(String token, long cid) throws Exception {
         mockMvc.perform(post("/api/comment/{cid}/like", cid)

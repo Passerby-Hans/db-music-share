@@ -325,4 +325,116 @@ class UserApiTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, token))
                 .andExpect(jsonPath("$.code").value(401));
     }
+
+    @Test
+    @DisplayName("登出未携带令牌：401（拦截器拦截）")
+    void logoutAnonymous() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    // ============================ 校验边界补充 ============================
+
+    @Test
+    @DisplayName("登录用户名为空：400（@NotBlank，区别于密码错误的 401）")
+    void loginBlankUsername() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"","password":"123456"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("注册用户名超长(>50)：400")
+    void registerUsernameTooLong() throws Exception {
+        String longName = "a".repeat(51);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + longName + "\",\"password\":\"123456\",\"nickname\":\"长名\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("注册密码超长(>50)：400")
+    void registerPasswordTooLong() throws Exception {
+        String longPwd = "a".repeat(51);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"validname\",\"password\":\"" + longPwd + "\",\"nickname\":\"昵称\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("注册昵称为空：400（@NotBlank）")
+    void registerBlankNickname() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"validname","password":"123456","nickname":""}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("注册昵称超长(>50)：400")
+    void registerNicknameTooLong() throws Exception {
+        String longNick = "昵".repeat(51);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"validname\",\"password\":\"123456\",\"nickname\":\"" + longNick + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("注册用户名下限端点(恰好 4 字符)：成功（合法端点不被误拒）")
+    void registerUsernameMinBoundary() throws Exception {
+        MvcResult res = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"abcd","password":"123456","nickname":"四字名"}
+                                """))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        assertThat(readJson(res).path("data").asLong()).isPositive();
+    }
+
+    @Test
+    @DisplayName("改密新密码过短(<6)：400（区别于旧密码错误的 409）")
+    void updatePasswordNewTooShort() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(put("/api/user/password")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"oldPassword":"123456","newPassword":"123"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("改密旧密码为空：400（@NotBlank，区别于旧密码错误的 409）")
+    void updatePasswordBlankOld() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(put("/api/user/password")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"oldPassword":"","newPassword":"newpass888"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("改资料头像超长(>255)：400")
+    void updateProfileAvatarTooLong() throws Exception {
+        String token = login("alice", "123456");
+        String longAvatar = "/a/".repeat(100); // 300 字符 > 255
+        mockMvc.perform(put("/api/user/profile")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"爱丽丝\",\"avatar\":\"" + longAvatar + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
 }

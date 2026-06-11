@@ -267,4 +267,98 @@ class FavoriteApiTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/favorite/{sid}/status", 1))
                 .andExpect(jsonPath("$.code").value(401));
     }
+
+    // ============================ 分支与边界补充 ============================
+
+    @Test
+    @DisplayName("收藏已驳回的歌(sid=11)：404")
+    void addRejectedSong() throws Exception {
+        // sid=11 audit_status=2 驳回——与待审/软删同抛错语义，独立坐实
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/favorite/{sid}", 11).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("未登录取消收藏：401（DELETE 的鉴权分支）")
+    void rejectAnonymousRemove() throws Exception {
+        mockMvc.perform(delete("/api/favorite/{sid}", 1))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("我的收藏分页翻页 + 跨页仍倒序")
+    void listMinePaging() throws Exception {
+        // alice 收藏 sid=2/7/4，fav_time 倒序为 4→7→2
+        String token = login("alice", "123456");
+        MvcResult p1 = mockMvc.perform(get("/api/favorite/mine")
+                        .header(TOKEN_HEADER, token).param("page", "1").param("size", "1"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode d1 = readJson(p1).path("data");
+        assertThat(d1.path("records").get(0).path("sid").asLong()).isEqualTo(4);
+        assertThat(d1.path("size").asLong()).isEqualTo(1);
+
+        MvcResult p2 = mockMvc.perform(get("/api/favorite/mine")
+                        .header(TOKEN_HEADER, token).param("page", "2").param("size", "1"))
+                .andReturn();
+        // 第二页应是倒序的第二条 sid=7
+        assertThat(readJson(p2).path("data").path("records").get(0).path("sid").asLong()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("无任何收藏的用户：空列表 total=0")
+    void listMineEmpty() throws Exception {
+        // admin(uid=1) 种子无收藏
+        String token = login("admin", "123456");
+        MvcResult res = mockMvc.perform(get("/api/favorite/mine").header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode data = readJson(res).path("data");
+        assertThat(data.path("total").asLong()).isZero();
+        assertThat(data.path("records")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("同一列表内 playable 真假混合：carol 的 sid=12(false) 与 sid=8/4(true)")
+    void listMinePlayableMixed() throws Exception {
+        // carol(uid=7) 收藏 sid=4/8(可见) 与 sid=12(已软删)
+        String token = login("carol", "123456");
+        MvcResult res = mockMvc.perform(get("/api/favorite/mine")
+                        .header(TOKEN_HEADER, token).param("size", "100"))
+                .andReturn();
+        boolean sawTrue = false, sawFalse = false;
+        for (JsonNode rec : readJson(res).path("data").path("records")) {
+            long sid = rec.path("sid").asLong();
+            if (sid == 12L) {
+                assertThat(rec.path("playable").asBoolean()).isFalse();
+                sawFalse = true;
+            } else if (sid == 8L || sid == 4L) {
+                assertThat(rec.path("playable").asBoolean()).isTrue();
+                sawTrue = true;
+            }
+        }
+        // 同一响应里真假都出现
+        assertThat(sawTrue).isTrue();
+        assertThat(sawFalse).isTrue();
+    }
+
+    @Test
+    @DisplayName("重复收藏真幂等：连收两次 total 只 +1（不重复插行）")
+    void addFavoriteTrulyIdempotent() throws Exception {
+        // bob(uid=6) 未收藏 sid=1
+        String token = login("bob", "123456");
+        long before = readJson(mockMvc.perform(get("/api/favorite/mine")
+                        .header(TOKEN_HEADER, token).param("size", "100"))
+                .andReturn()).path("data").path("total").asLong();
+        // 连收两次
+        mockMvc.perform(post("/api/favorite/{sid}", 1).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(post("/api/favorite/{sid}", 1).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200));
+        long after = readJson(mockMvc.perform(get("/api/favorite/mine")
+                        .header(TOKEN_HEADER, token).param("size", "100"))
+                .andReturn()).path("data").path("total").asLong();
+        assertThat(after).isEqualTo(before + 1);
+    }
 }

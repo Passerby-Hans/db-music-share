@@ -256,4 +256,41 @@ class SongAuditApiTest extends AbstractIntegrationTest {
                                 """))
                 .andExpect(jsonPath("$.code").value(403));
     }
+
+    // ============================ 校验与分支补充 ============================
+
+    @Test
+    @DisplayName("驳回歌取播放地址：404（驳回状态独立坐实）")
+    void getPlayUrlRejectedNotFound() throws Exception {
+        // sid=11 audit_status=2 驳回
+        String token = login("alice", "123456");
+        mockMvc.perform(get("/api/song/public/{sid}/play-url", 11).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("驳回理由超长(>255)：400")
+    void auditRemarkTooLong() throws Exception {
+        String token = login("admin", "123456");
+        String longRemark = "理".repeat(256);
+        mockMvc.perform(post("/api/admin/song/{sid}/audit", 9)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pass\":false,\"remark\":\"" + longRemark + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("驳回理由为纯空白串：400（Service 层 isBlank 校验）")
+    void auditRejectBlankRemark() throws Exception {
+        // @Size 拦不住空白串，走 Service 的 isBlank() 分支
+        String token = login("admin", "123456");
+        mockMvc.perform(post("/api/admin/song/{sid}/audit", 9)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"pass":false,"remark":"   "}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
 }

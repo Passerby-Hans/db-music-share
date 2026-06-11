@@ -920,4 +920,130 @@ class SongAlbumApiTest extends AbstractIntegrationTest {
         mockMvc.perform(delete("/api/album/{aid}", 99999).header(TOKEN_HEADER, token))
                 .andExpect(jsonPath("$.code").value(404));
     }
+
+    // ============================ 校验与分支补充 ============================
+
+    @Test
+    @DisplayName("上传缺 audioPath：400（@NotBlank）")
+    void uploadMissingAudioPath() throws Exception {
+        String token = login("uploader_jay", "123456");
+        mockMvc.perform(post("/api/song")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"没有音频路径的歌"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("上传标题超长(>150)：400")
+    void uploadTitleTooLong() throws Exception {
+        String token = login("uploader_jay", "123456");
+        String longTitle = "歌".repeat(151);
+        mockMvc.perform(post("/api/song")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + longTitle + "\",\"audioPath\":\"audio/x.mp3\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("上传音频路径超长(>255)：400")
+    void uploadAudioPathTooLong() throws Exception {
+        String token = login("uploader_jay", "123456");
+        String longPath = "a".repeat(256);
+        mockMvc.perform(post("/api/song")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"正常名\",\"audioPath\":\"" + longPath + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("上传时长非正(0)：400（@Positive）")
+    void uploadDurationNotPositive() throws Exception {
+        String token = login("uploader_jay", "123456");
+        mockMvc.perform(post("/api/song")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"零时长","audioPath":"audio/x.mp3","duration":0}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("上传模式②新专辑名超长(>100)：400")
+    void uploadNewAlbumNameTooLong() throws Exception {
+        String token = login("uploader_jay", "123456");
+        String longName = "专".repeat(101);
+        mockMvc.perform(post("/api/song")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"歌\",\"audioPath\":\"audio/x.mp3\",\"newAlbumName\":\"" + longName + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("移动歌曲缺 targetAlbumAid：400（@NotNull）")
+    void moveMissingTarget() throws Exception {
+        String token = login("uploader_jay", "123456");
+        mockMvc.perform(put("/api/song/{sid}/album", 1)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("修改不存在的专辑：404（与删除路径对称）")
+    void updateMissingAlbumNotFound() throws Exception {
+        String token = login("uploader_jay", "123456");
+        mockMvc.perform(put("/api/album/{aid}", 99999)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"albumName":"改幽灵专辑"}
+                                """))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("新建专辑名超长(>100)：400")
+    void createAlbumNameTooLong() throws Exception {
+        String token = login("uploader_jay", "123456");
+        String longName = "专".repeat(101);
+        mockMvc.perform(post("/api/album")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"albumName\":\"" + longName + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("移走普通专辑最后一首歌：源专辑不被清理（仅缺省专辑才自动清）")
+    void moveOutOfNormalAlbumKeepsIt() throws Exception {
+        // jay 的专辑2(叶惠美) 是普通专辑；先把它的歌都查出来再移走，验证专辑2仍在
+        // 种子里专辑2 含 sid=3（叶惠美的歌）；把 sid=3 移到专辑1后，专辑2 应仍存在
+        String token = login("uploader_jay", "123456");
+        mockMvc.perform(put("/api/song/{sid}/album", 3)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetAlbumAid":1}
+                                """))
+                .andExpect(jsonPath("$.code").value(200));
+        // 专辑2 仍在"我的专辑"中（普通专辑不自动软删）
+        MvcResult res = mockMvc.perform(get("/api/album/mine")
+                        .header(TOKEN_HEADER, token).param("size", "100"))
+                .andReturn();
+        boolean stillHasAlbum2 = false;
+        for (JsonNode a : readJson(res).path("data").path("records")) {
+            if (a.path("aid").asLong() == 2L) { stillHasAlbum2 = true; break; }
+        }
+        assertThat(stillHasAlbum2).isTrue();
+    }
 }

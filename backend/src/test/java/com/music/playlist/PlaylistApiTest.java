@@ -124,6 +124,30 @@ class PlaylistApiTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("创建歌单名称超长(>100)：400 参数校验")
+    void createNameTooLong() throws Exception {
+        String token = login("alice", "123456");
+        String longName = "歌".repeat(101); // 超过 @Size(max=100)
+        mockMvc.perform(post("/api/playlist")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playlistName\":\"" + longName + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("创建歌单简介超长(>255)：400 参数校验")
+    void createDescTooLong() throws Exception {
+        String token = login("alice", "123456");
+        String longDesc = "字".repeat(256); // 超过 @Size(max=255)
+        mockMvc.perform(post("/api/playlist")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playlistName\":\"正常名\",\"description\":\"" + longDesc + "\"}"))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
     @DisplayName("未登录创建歌单：401")
     void createAnonymous() throws Exception {
         mockMvc.perform(post("/api/playlist")
@@ -519,5 +543,44 @@ class PlaylistApiTest extends AbstractIntegrationTest {
                 .andReturn();
         assertThat(readJson(res).path("data").path("total").asLong()).isZero();
         assertThat(readJson(res).path("data").path("records")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("登录的非 owner 查看他人公开歌单：成功（正路径）")
+    void othersViewPublicSucceeds() throws Exception {
+        // bob 看 alice 的公开 plid=1
+        String token = login("bob", "123456");
+        mockMvc.perform(get("/api/playlist/{plid}", 1).header(TOKEN_HEADER, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.playlist.plid").value(1))
+                .andExpect(jsonPath("$.data.playlist.isPublic").value(true));
+    }
+
+    @Test
+    @DisplayName("歌单详情曲目分页：size=2 翻页，total 恒为全量")
+    void detailSongsPaging() throws Exception {
+        // plid=1 公开，含 5 首曲目
+        MvcResult p1 = mockMvc.perform(get("/api/playlist/{plid}", 1)
+                        .param("page", "1").param("size", "2"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode songs1 = readJson(p1).path("data").path("songs");
+        assertThat(songs1.path("total").asLong()).isEqualTo(5); // total 是全量
+        assertThat(songs1.path("records")).hasSize(2);          // 本页只 2 条
+        assertThat(songs1.path("size").asLong()).isEqualTo(2);
+
+        // 第 3 页（size=2）应只剩 1 条（5 = 2+2+1）
+        MvcResult p3 = mockMvc.perform(get("/api/playlist/{plid}", 1)
+                        .param("page", "3").param("size", "2"))
+                .andReturn();
+        assertThat(readJson(p3).path("data").path("songs").path("records")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("未登录移歌：401")
+    void removeSongAnonymous() throws Exception {
+        mockMvc.perform(delete("/api/playlist/{plid}/songs/{sid}", 1, 1))
+                .andExpect(jsonPath("$.code").value(401));
     }
 }

@@ -95,6 +95,8 @@ class RatingApiTest extends AbstractIntegrationTest {
         assertThat(after.path("ratingCount").asLong()).isEqualTo(4);
         // 我的评分已更新为 3
         assertThat(after.path("myScore").asInt()).isEqualTo(3);
+        // 平均分随之变化：原 5/5/4/5=4.75，alice 改 5→3 后 3/5/4/5=4.25→4.3
+        assertThat(after.path("avgScore").asDouble()).isEqualTo(4.3);
     }
 
     @Test
@@ -121,6 +123,18 @@ class RatingApiTest extends AbstractIntegrationTest {
                                 {"score":6}
                                 """))
                 .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    @DisplayName("评分合法边界 1 和 5：均成功（端点不被误拒）")
+    void rateBoundaryScores() throws Exception {
+        String token = login("bob", "123456");
+        // 下端点 1：给 bob 未评过的 sid=4 打 1 分
+        rate(token, 4, 1);
+        assertThat(stat(token, 4).path("myScore").asInt()).isEqualTo(1);
+        // 上端点 5：改成 5 分
+        rate(token, 4, 5);
+        assertThat(stat(token, 4).path("myScore").asInt()).isEqualTo(5);
     }
 
     @Test
@@ -154,6 +168,20 @@ class RatingApiTest extends AbstractIntegrationTest {
     void rateDeletedSong() throws Exception {
         String token = login("alice", "123456");
         mockMvc.perform(post("/api/rating/{sid}", 12)
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"score":5}
+                                """))
+                .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("给已驳回歌评分：404")
+    void rateRejectedSong() throws Exception {
+        // sid=11 audit_status=2 驳回
+        String token = login("alice", "123456");
+        mockMvc.perform(post("/api/rating/{sid}", 11)
                         .header(TOKEN_HEADER, token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -324,5 +352,35 @@ class RatingApiTest extends AbstractIntegrationTest {
             }
         }
         assertThat(foundUnplayable).isTrue();
+    }
+
+    // ============================ 组合场景 ============================
+
+    @Test
+    @DisplayName("撤销后可重新评分：先删再评，新分生效")
+    void reRateAfterCancel() throws Exception {
+        // alice 种子评过 sid=1 为 5 分
+        String token = login("alice", "123456");
+        mockMvc.perform(delete("/api/rating/{sid}", 1).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200));
+        assertThat(stat(token, 1).path("myScore").isNull()).isTrue();
+        // 重新评 2 分
+        rate(token, 1, 2);
+        assertThat(stat(token, 1).path("myScore").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("评分全部撤光后：概况归零（count=0, avg=0）")
+    void statZeroAfterAllCancelled() throws Exception {
+        // sid=1 种子有 alice(uid5,5分) 与 bob(uid6,4分) 两人
+        String alice = login("alice", "123456");
+        String bob = login("bob", "123456");
+        mockMvc.perform(delete("/api/rating/{sid}", 1).header(TOKEN_HEADER, alice))
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(delete("/api/rating/{sid}", 1).header(TOKEN_HEADER, bob))
+                .andExpect(jsonPath("$.code").value(200));
+        JsonNode data = stat(null, 1);
+        assertThat(data.path("ratingCount").asLong()).isZero();
+        assertThat(data.path("avgScore").asDouble()).isZero();
     }
 }
