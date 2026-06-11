@@ -162,7 +162,10 @@ INSERT INTO rating (uid, sid, score, rate_time) VALUES
 (5, 1, 5, CURRENT_TIMESTAMP - INTERVAL '7 days'),
 (6, 1, 4, CURRENT_TIMESTAMP - INTERVAL '6 days'),
 (7, 8, 5, CURRENT_TIMESTAMP - INTERVAL '8 days'),
-(8, 3, 2, CURRENT_TIMESTAMP - INTERVAL '10 days');
+(8, 3, 2, CURRENT_TIMESTAMP - INTERVAL '10 days'),
+-- carol(uid=7) 评过 sid=12「已下架的歌」：评分发生在下架前，
+-- 用于验证"我的评分"对失效歌曲"不剔除、仅标 playable=false"的策略（同收藏模块）
+(7, 12, 3, CURRENT_TIMESTAMP - INTERVAL '9 days');
 
 -- --------------------------------------------------------------------
 -- 7. 歌单 playlist（6 个，含公开/私密）
