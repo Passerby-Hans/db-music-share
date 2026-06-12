@@ -5,7 +5,9 @@ import com.music.user.dto.LoginVO;
 import com.music.user.dto.RegisterDTO;
 import com.music.user.dto.UpdatePasswordDTO;
 import com.music.user.dto.UpdateProfileDTO;
+import com.music.user.dto.UserInfoVO;
 import com.music.user.entity.User;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户与鉴权业务接口。
@@ -54,6 +56,19 @@ public interface UserService {
     User getByUid(Long uid);
 
     /**
+     * 查询当前用户资料 VO（个人中心展示）。
+     *
+     * <p>相比 {@link #getByUid(Long)} 返回实体，本方法返回安全投影 VO，
+     * 并把头像 key 处理为可直接展示的形态（本系统上传的对象转公开直链，
+     * 静态路径原样返回）。</p>
+     *
+     * @param uid 用户 uid
+     * @return 用户资料 VO（头像为可展示 URL）
+     * @throws com.music.common.exception.BizException 用户不存在
+     */
+    UserInfoVO getMyInfo(Long uid);
+
+    /**
      * 修改个人资料（昵称、头像）。
      *
      * @param uid 当前用户 uid
@@ -69,4 +84,13 @@ public interface UserService {
      * @throws com.music.common.exception.BizException 旧密码不正确
      */
     void updatePassword(Long uid, UpdatePasswordDTO dto);
+
+    /**
+     * 更换当前用户头像：上传新图到公开桶、更新 avatar 字段、删旧头像文件。
+     *
+     * @param uid  当前用户 uid
+     * @param file 头像图片文件（由调用方先经 {@code FileValidator} 校验）
+     * @return 新头像的公开直链 URL
+     */
+    String changeAvatar(Long uid, MultipartFile file);
 }

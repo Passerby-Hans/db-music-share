@@ -5,22 +5,27 @@ import com.music.common.exception.BizException;
 import com.music.common.result.ResultCode;
 import com.music.common.session.LoginUser;
 import com.music.common.session.SessionService;
+import com.music.common.storage.DeferredStorageCleaner;
+import com.music.common.storage.StorageService;
 import com.music.user.dto.LoginDTO;
 import com.music.user.dto.LoginVO;
 import com.music.user.dto.RegisterDTO;
 import com.music.user.dto.UpdatePasswordDTO;
 import com.music.user.dto.UpdateProfileDTO;
+import com.music.user.dto.UserInfoVO;
 import com.music.user.entity.User;
 import com.music.user.mapper.UserMapper;
 import com.music.user.service.UserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户与鉴权业务实现。
  *
  * <p>密码用 {@link PasswordEncoder}（BCrypt）哈希与校验；
- * 登录态用 {@link SessionService} 存取于 Redis。</p>
+ * 登录态用 {@link SessionService} 存取于 Redis；
+ * 头像文件经 {@link StorageService} 存入公开桶。</p>
  */
 @Service
 public class UserServiceImpl implements UserService {
@@ -34,6 +39,8 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final SessionService sessionService;
+    private final StorageService storageService;
+    private final DeferredStorageCleaner storageCleaner;
 
     /**
      * 构造器注入依赖。
@@ -41,13 +48,19 @@ public class UserServiceImpl implements UserService {
      * @param userMapper      用户数据访问
      * @param passwordEncoder BCrypt 密码加密器
      * @param sessionService  Redis 会话服务
+     * @param storageService  对象存储（头像上传/生成公开直链）
+     * @param storageCleaner  延迟删除器（换头像时删旧文件）
      */
     public UserServiceImpl(UserMapper userMapper,
                            PasswordEncoder passwordEncoder,
-                           SessionService sessionService) {
+                           SessionService sessionService,
+                           StorageService storageService,
+                           DeferredStorageCleaner storageCleaner) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.sessionService = sessionService;
+        this.storageService = storageService;
+        this.storageCleaner = storageCleaner;
     }
 
     /**
@@ -130,6 +143,30 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
+     * 查询当前用户资料 VO，并把头像处理为可展示 URL。
+     */
+    @Override
+    public UserInfoVO getMyInfo(Long uid) {
+        UserInfoVO vo = UserInfoVO.from(getByUid(uid));
+        vo.setAvatar(displayAvatar(vo.getAvatar()));
+        return vo;
+    }
+
+    /**
+     * 把头像 key 转为可展示形态：本系统上传的对象（{@code cover/} 前缀）拼成公开直链，
+     * 其余（如种子静态路径 {@code /avatar/5.png}、null）原样返回，避免错误拼接。
+     *
+     * @param avatar 库中存的头像值
+     * @return 可直接用于前端展示的头像地址
+     */
+    private String displayAvatar(String avatar) {
+        if (avatar != null && avatar.startsWith("cover/")) {
+            return storageService.publicUrl(avatar);
+        }
+        return avatar;
+    }
+
+    /**
      * 修改个人资料（昵称、头像）。
      */
     @Override
@@ -158,5 +195,29 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
         // 改密后作废该用户所有会话，旧令牌即时失效（须重新登录）
         sessionService.deleteSessionsByUid(uid);
+    }
+
+    /**
+     * 更换头像：上传新图到公开桶，更新 avatar 字段，并删旧头像文件。
+     *
+     * <p>头像存公开桶（COVER），avatar 字段保存返回的 object key；查询时经
+     * {@code publicUrl} 拼成直链。旧头像若是本系统上传的对象（key 以 {@code cover/} 前缀），
+     * 则经延迟删除器在事务提交后清理，避免垃圾堆积；种子里的静态路径
+     * （如 {@code /avatar/5.png}）非存储对象，跳过删除。</p>
+     */
+    @Override
+    public String changeAvatar(Long uid, MultipartFile file) {
+        User user = getByUid(uid);
+        String oldAvatar = user.getAvatar();
+        // 上传新头像到公开桶，拿到 object key
+        String newKey = storageService.upload(StorageService.BucketType.COVER, file);
+        user.setAvatar(newKey);
+        userMapper.updateById(user);
+        // 删旧头像：仅清理本系统上传的对象（cover/ 前缀），静态种子路径跳过
+        if (oldAvatar != null && oldAvatar.startsWith("cover/") && !oldAvatar.equals(newKey)) {
+            storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, oldAvatar);
+        }
+        // 返回新头像的公开直链，供前端即时展示
+        return storageService.publicUrl(newKey);
     }
 }
