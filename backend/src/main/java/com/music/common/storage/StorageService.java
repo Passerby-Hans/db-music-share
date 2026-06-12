@@ -14,12 +14,17 @@ import java.util.List;
  */
 public interface StorageService {
 
-    /** 存储桶类型：音频(私有) / 封面(公开)。 */
+    /** 存储桶类型：音频(私有) / 封面(公开) / 头像(公开，逻辑独立前缀)。 */
     enum BucketType {
         /** 音频私有桶，经预签名 URL 访问。 */
         AUDIO,
         /** 封面公开桶，直链访问。 */
-        COVER
+        COVER,
+        /**
+         * 用户头像。物理上复用封面公开桶，但使用独立的 {@code avatar/} key 前缀，
+         * 与歌曲封面逻辑隔离——即便出现 key 注入也波及不到封面对象。
+         */
+        AVATAR
     }
 
     /**

@@ -4,9 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 修改个人资料请求参数（昵称、头像）。
+ * 修改个人资料请求参数（仅昵称）。
  *
- * <p>不含密码与角色——密码改动走独立接口，角色变更属管理员操作。</p>
+ * <p><b>不含头像</b>：头像变更走专用接口 {@code POST /api/user/avatar}
+ * （上传图片、服务端生成 key），不允许客户端直接提交 avatar 字符串，
+ * 以杜绝把 avatar 设为任意 object key 进而触发越权删文件。
+ * 密码改动走独立接口，角色变更属管理员操作。</p>
  */
 public class UpdateProfileDTO {
 
@@ -15,23 +18,11 @@ public class UpdateProfileDTO {
     @Size(max = 50, message = "昵称长度不能超过 50 个字符")
     private String nickname;
 
-    /** 新头像路径：可空。 */
-    @Size(max = 255, message = "头像路径过长")
-    private String avatar;
-
     public String getNickname() {
         return nickname;
     }
 
     public void setNickname(String nickname) {
         this.nickname = nickname;
-    }
-
-    public String getAvatar() {
-        return avatar;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
     }
 }

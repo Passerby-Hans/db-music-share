@@ -73,13 +73,13 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new BizException(ResultCode.BAD_REQUEST, "不能封禁自己");
         }
         User user = requireExisting(targetUid);
-        // 幂等：已封禁直接返回，不重复写库/清会话
-        if (user.getStatus() != null && user.getStatus() == STATUS_BANNED) {
-            return;
+        // 即使已是封禁态也继续执行吊销：覆盖「DB 已置 banned 但上次 Redis 吊销失败」的重试场景，
+        // 不能因状态已 banned 就 return，否则漏吊销的旧会话会续命至 TTL（最长 24h）。
+        if (user.getStatus() == null || user.getStatus() != STATUS_BANNED) {
+            user.setStatus(STATUS_BANNED);
+            userMapper.updateById(user);
         }
-        user.setStatus(STATUS_BANNED);
-        userMapper.updateById(user);
-        // 作废其全部会话：手中令牌即时失效，封禁立即生效
+        // 作废其全部会话：手中令牌即时失效，封禁立即生效（幂等，重复调用无害）
         sessionService.deleteSessionsByUid(targetUid);
     }
 

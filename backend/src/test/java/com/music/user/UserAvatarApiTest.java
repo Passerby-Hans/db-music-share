@@ -162,6 +162,20 @@ class UserAvatarApiTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("上传伪装文件(.jpg 扩展名但内容是 HTML)：400（内容层校验拦截）")
+    void uploadDisguisedHtml() throws Exception {
+        // 安全回归（对抗审查 #4）：仅查扩展名不够，内容校验用 ImageIO 解码，
+        // 非真实图片（这里是 HTML 文本伪装成 .jpg）应被拒，杜绝公开桶托管可渲染主动内容。
+        String token = login("alice", "123456");
+        byte[] html = "<html><script>alert(1)</script></html>".getBytes();
+        MockMultipartFile fake = new MockMultipartFile("file", "evil.jpg", "image/jpeg", html);
+        mockMvc.perform(multipart("/api/user/avatar")
+                        .file(fake)
+                        .header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
     @DisplayName("换头像两次：第二次成功（旧头像清理走提交后钩子，不影响结果）")
     void uploadAvatarTwice() throws Exception {
         String token = login("alice", "123456");
@@ -170,7 +184,7 @@ class UserAvatarApiTest extends AbstractIntegrationTest {
                         .file(realImage("first.jpg"))
                         .header(TOKEN_HEADER, token))
                 .andExpect(jsonPath("$.code").value(200));
-        // 第二次上传（此时旧头像是 cover/ 前缀的上传对象，触发删旧逻辑）
+        // 第二次上传（此时旧头像是 avatar/ 前缀的上传对象，触发删旧逻辑）
         MvcResult res = mockMvc.perform(multipart("/api/user/avatar")
                         .file(realImage("second.jpg"))
                         .header(TOKEN_HEADER, token))

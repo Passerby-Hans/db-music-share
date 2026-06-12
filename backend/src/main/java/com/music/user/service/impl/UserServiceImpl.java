@@ -153,27 +153,30 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 把头像 key 转为可展示形态：本系统上传的对象（{@code cover/} 前缀）拼成公开直链，
+     * 把头像 key 转为可展示形态：本系统上传的头像对象（{@code avatar/} 前缀）拼成公开直链，
      * 其余（如种子静态路径 {@code /avatar/5.png}、null）原样返回，避免错误拼接。
      *
      * @param avatar 库中存的头像值
      * @return 可直接用于前端展示的头像地址
      */
     private String displayAvatar(String avatar) {
-        if (avatar != null && avatar.startsWith("cover/")) {
+        if (avatar != null && avatar.startsWith("avatar/")) {
             return storageService.publicUrl(avatar);
         }
         return avatar;
     }
 
     /**
-     * 修改个人资料（昵称、头像）。
+     * 修改个人资料（仅昵称）。
+     *
+     * <p><b>不接受头像字段</b>：头像变更只能通过 {@code POST /api/user/avatar}
+     * 上传图片、由服务端生成 key，杜绝客户端把 avatar 设成任意 object key
+     * （否则换头像时的删旧逻辑会沦为「删任意文件」的越权入口）。</p>
      */
     @Override
     public void updateProfile(Long uid, UpdateProfileDTO dto) {
         User user = getByUid(uid);
         user.setNickname(dto.getNickname());
-        user.setAvatar(dto.getAvatar());
         userMapper.updateById(user);
     }
 
@@ -198,24 +201,23 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 更换头像：上传新图到公开桶，更新 avatar 字段，并删旧头像文件。
+     * 更换头像：上传新图到公开桶的独立 {@code avatar/} 命名空间，更新 avatar 字段，并删旧头像文件。
      *
-     * <p>头像存公开桶（COVER），avatar 字段保存返回的 object key；查询时经
-     * {@code publicUrl} 拼成直链。旧头像若是本系统上传的对象（key 以 {@code cover/} 前缀），
-     * 则经延迟删除器在事务提交后清理，避免垃圾堆积；种子里的静态路径
-     * （如 {@code /avatar/5.png}）非存储对象，跳过删除。</p>
+     * <p>头像 key 由服务端生成（{@code avatar/yyyy/MM/uuid.ext}），查询时经 {@code publicUrl} 拼直链。
+     * 删旧头像时<b>仅清理 {@code avatar/} 前缀的对象</b>——与歌曲封面（{@code cover/}）物理隔离，
+     * 即便 avatar 字段被异常置为他值也删不到封面；种子静态路径（{@code /avatar/5.png}）非存储对象，跳过。</p>
      */
     @Override
     public String changeAvatar(Long uid, MultipartFile file) {
         User user = getByUid(uid);
         String oldAvatar = user.getAvatar();
-        // 上传新头像到公开桶，拿到 object key
-        String newKey = storageService.upload(StorageService.BucketType.COVER, file);
+        // 上传新头像到公开桶的 avatar/ 命名空间，拿到服务端生成的 object key
+        String newKey = storageService.upload(StorageService.BucketType.AVATAR, file);
         user.setAvatar(newKey);
         userMapper.updateById(user);
-        // 删旧头像：仅清理本系统上传的对象（cover/ 前缀），静态种子路径跳过
-        if (oldAvatar != null && oldAvatar.startsWith("cover/") && !oldAvatar.equals(newKey)) {
-            storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, oldAvatar);
+        // 删旧头像：仅清理本系统上传的头像对象（avatar/ 前缀），静态种子路径与异常值跳过
+        if (oldAvatar != null && oldAvatar.startsWith("avatar/") && !oldAvatar.equals(newKey)) {
+            storageCleaner.deleteAfterCommit(StorageService.BucketType.AVATAR, oldAvatar);
         }
         // 返回新头像的公开直链，供前端即时展示
         return storageService.publicUrl(newKey);

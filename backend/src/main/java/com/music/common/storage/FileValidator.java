@@ -4,6 +4,9 @@ import com.music.common.exception.BizException;
 import com.music.common.result.ResultCode;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
 import java.util.Set;
 
 /**
@@ -26,8 +29,15 @@ public final class FileValidator {
     /** 音频允许的扩展名白名单。 */
     public static final Set<String> AUDIO_EXT = Set.of("mp3", "wav", "flac", "m4a", "aac", "ogg");
 
-    /** 图片允许的扩展名白名单（封面与头像共用）。 */
+    /** 图片允许的扩展名白名单（宽集合，含 webp）。 */
     public static final Set<String> IMAGE_EXT = Set.of("jpg", "jpeg", "png", "webp", "gif");
+
+    /**
+     * 可被 {@link #validateImageContent} 内容校验可靠解码的图片扩展名集合（jpg/jpeg/png/gif）。
+     * 不含 webp（部分 JDK 无 ImageIO 解码器，会导致合法 webp 误拒）。头像与封面共用——
+     * 凡需「扩展名 + ImageIO 内容双校验」的图片上传都用本集合，保证内容校验不误伤白名单内格式。
+     */
+    public static final Set<String> DECODABLE_IMAGE_EXT = Set.of("jpg", "jpeg", "png", "gif");
 
     private FileValidator() {
     }
@@ -55,6 +65,29 @@ public final class FileValidator {
         if (!allowedExt.contains(ext)) {
             throw new BizException(ResultCode.BAD_REQUEST,
                     "不支持的" + label + "格式，仅允许: " + String.join("/", allowedExt));
+        }
+    }
+
+    /**
+     * 校验文件确为可解码的真实图片（防「伪装成 .jpg 的 HTML/脚本」绕过扩展名白名单）。
+     *
+     * <p>用 {@link ImageIO#read} 尝试解码：能解出 {@link BufferedImage} 才视为有效图片，
+     * 否则拒绝。仅查扩展名/MIME 不足以拦住主动内容——攻击者可上传 Content-Type 伪造的
+     * HTML 命名为 .jpg 经公开桶直链获得可渲染入口；本校验从内容层把关。</p>
+     *
+     * @param file 上传文件（应先经 {@link #validate} 通过扩展名/大小校验）
+     * @throws BizException 无法解码为图片（400）
+     */
+    public static void validateImageContent(MultipartFile file) {
+        try (InputStream in = file.getInputStream()) {
+            BufferedImage img = ImageIO.read(in);
+            if (img == null) {
+                throw new BizException(ResultCode.BAD_REQUEST, "文件内容不是有效图片");
+            }
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(ResultCode.BAD_REQUEST, "图片解析失败，请上传有效图片");
         }
     }
 }

@@ -48,13 +48,18 @@ public class FileController {
     /**
      * 上传封面到公开桶。
      *
+     * <p>两道校验同头像：扩展名白名单+5MB，再用 {@link FileValidator#validateImageContent}
+     * 解码确认是真实图片，挡住伪装扩展名的主动内容（公开桶直链可被浏览器渲染）。
+     * 白名单取 ImageIO 可解码集合（jpg/jpeg/png/gif）。</p>
+     *
      * @param file multipart 文件，表单字段名 {@code file}
      * @return 含 key 与公开直链 url
      */
     @PostMapping("/cover")
     @RequireRole({1, 2})
     public Result<UploadResultVO> uploadCover(@RequestParam("file") MultipartFile file) {
-        FileValidator.validate(file, FileValidator.MAX_IMAGE_SIZE, FileValidator.IMAGE_EXT, "封面");
+        FileValidator.validate(file, FileValidator.MAX_IMAGE_SIZE, FileValidator.DECODABLE_IMAGE_EXT, "封面");
+        FileValidator.validateImageContent(file);
         String key = storageService.upload(BucketType.COVER, file);
         return Result.success(new UploadResultVO(key, storageService.publicUrl(key)));
     }

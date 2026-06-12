@@ -187,10 +187,32 @@ class AdminUserApiTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("封禁幂等：封禁已封禁用户(uid=9)直接成功")
+    @DisplayName("封禁幂等且重试仍吊销(对抗审查#3)：对已封用户再次封禁返回 200，不 early-return")
     void banIsIdempotent() throws Exception {
+        // #3 回归：旧实现「已 banned 即 return」会在『DB 已封但上次 Redis 吊销失败』时
+        // 跳过清会话，使漏吊销的旧会话续命至 TTL。修复后即便已 banned 也会重复执行吊销，
+        // 故对已封禁用户(uid=9)重复封禁仍应正常返回 200（而非因 early-return 改变行为）。
         String admin = login("admin", "123456");
         mockMvc.perform(put("/api/admin/user/{uid}/ban", 9).header(TOKEN_HEADER, admin))
+                .andExpect(jsonPath("$.code").value(200));
+        // 再封一次，依旧 200（幂等 + 每次都执行吊销）
+        mockMvc.perform(put("/api/admin/user/{uid}/ban", 9).header(TOKEN_HEADER, admin))
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @DisplayName("封禁对已登录会话即时生效后重复封禁仍成功：alice 登录→封→再封")
+    void banTwiceAfterActiveSession() throws Exception {
+        // alice 先登录产生活跃会话
+        String aliceToken = login("alice", "123456");
+        String admin = login("admin", "123456");
+        // 第一次封禁：清掉 alice 会话
+        mockMvc.perform(put("/api/admin/user/{uid}/ban", 5).header(TOKEN_HEADER, admin))
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, aliceToken))
+                .andExpect(jsonPath("$.code").value(401));
+        // 第二次封禁（alice 已是 banned）：仍走吊销路径、返回 200，不因 early-return 短路
+        mockMvc.perform(put("/api/admin/user/{uid}/ban", 5).header(TOKEN_HEADER, admin))
                 .andExpect(jsonPath("$.code").value(200));
     }
 

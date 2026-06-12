@@ -72,16 +72,20 @@ public class UserController {
     /**
      * 上传/更换当前用户头像（登录即可，不限角色）。
      *
-     * <p>一步式：上传图片即存入公开桶、更新本人 avatar 并删旧头像，
-     * 返回新头像直链供前端即时展示。图片校验（类型白名单 + 5MB 上限）
-     * 交 {@link FileValidator}，与歌曲封面同口径。</p>
+     * <p>一步式：上传图片即存入公开桶的 {@code avatar/} 命名空间、更新本人 avatar 并删旧头像，
+     * 返回新头像直链供前端即时展示。两道校验：① {@link FileValidator#validate} 查扩展名白名单+5MB；
+     * ② {@link FileValidator#validateImageContent} 用 ImageIO 解码确认是真图片，挡住
+     * 「伪装成 .jpg 的 HTML/脚本」。头像白名单取 ImageIO 原生可解码的 jpg/jpeg/png/gif
+     * （不含 webp，避免部分 JDK 无法解码导致误拒）。</p>
      *
      * @param file multipart 图片文件，表单字段名 {@code file}
-     * @return 含新头像 key 与公开直链 url
+     * @return 含新头像公开直链 url（key 不外露）
      */
     @PostMapping("/avatar")
     public Result<UploadResultVO> uploadAvatar(@RequestParam("file") MultipartFile file) {
-        FileValidator.validate(file, FileValidator.MAX_IMAGE_SIZE, FileValidator.IMAGE_EXT, "头像");
+        FileValidator.validate(file, FileValidator.MAX_IMAGE_SIZE, FileValidator.DECODABLE_IMAGE_EXT, "头像");
+        // 内容层校验：必须能解码为真实图片，挡住伪装扩展名的主动内容
+        FileValidator.validateImageContent(file);
         String url = userService.changeAvatar(UserContext.getUid(), file);
         // key 不外露给前端（前端用 url 即可展示），仅回直链
         return Result.success(new UploadResultVO(null, url));

@@ -246,13 +246,35 @@ class UserApiTest extends AbstractIntegrationTest {
                         .header(TOKEN_HEADER, token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nickname":"爱丽丝改名了","avatar":"/avatar/new.png"}
+                                {"nickname":"爱丽丝改名了"}
                                 """))
                 .andExpect(jsonPath("$.code").value(200));
 
         MvcResult res = mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, token))
                 .andReturn();
         assertThat(readJson(res).path("data").path("nickname").asText()).isEqualTo("爱丽丝改名了");
+    }
+
+    @Test
+    @DisplayName("修改资料不接受头像字段：avatar 只能经 /api/user/avatar 变更，profile 传入被忽略")
+    void updateProfileIgnoresAvatar() throws Exception {
+        // 安全回归（对抗审查 #1）：profile 接口已移除 avatar 字段，
+        // 即便客户端塞入 avatar 也不会落库（杜绝把 avatar 设为任意 key 的越权删文件入口）。
+        String token = login("alice", "123456");
+        MvcResult before = mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, token)).andReturn();
+        String avatarBefore = readJson(before).path("data").path("avatar").asText();
+        // 塞入恶意 avatar（已知封面 key 形态）+ 合法昵称
+        mockMvc.perform(put("/api/user/profile")
+                        .header(TOKEN_HEADER, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"改名","avatar":"cover/2026/06/victim.jpg"}
+                                """))
+                .andExpect(jsonPath("$.code").value(200));
+        // 昵称改了，但 avatar 未被客户端值污染（保持原值）
+        MvcResult after = mockMvc.perform(get("/api/user/me").header(TOKEN_HEADER, token)).andReturn();
+        assertThat(readJson(after).path("data").path("nickname").asText()).isEqualTo("改名");
+        assertThat(readJson(after).path("data").path("avatar").asText()).isEqualTo(avatarBefore);
     }
 
     @Test
@@ -427,14 +449,14 @@ class UserApiTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("改资料头像超长(>255)：400")
-    void updateProfileAvatarTooLong() throws Exception {
+    @DisplayName("改资料昵称超长(>50)：400")
+    void updateProfileNicknameTooLong() throws Exception {
         String token = login("alice", "123456");
-        String longAvatar = "/a/".repeat(100); // 300 字符 > 255
+        String longNick = "改".repeat(51);
         mockMvc.perform(put("/api/user/profile")
                         .header(TOKEN_HEADER, token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nickname\":\"爱丽丝\",\"avatar\":\"" + longAvatar + "\"}"))
+                        .content("{\"nickname\":\"" + longNick + "\"}"))
                 .andExpect(jsonPath("$.code").value(400));
     }
 

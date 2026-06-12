@@ -40,25 +40,38 @@ public class MinioStorageService implements StorageService {
         this.props = props;
     }
 
-    /** 按桶类型取实际桶名。 */
+    /** 按桶类型取实际桶名（AVATAR 与 COVER 复用同一公开桶，仅 key 前缀不同）。 */
     private String bucketName(BucketType bucket) {
         return bucket == BucketType.AUDIO ? props.getAudioBucket() : props.getCoverBucket();
     }
+
+    /** 按桶类型取 key 前缀（决定对象在桶内的逻辑命名空间）。 */
+    private String keyPrefix(BucketType bucket) {
+        return switch (bucket) {
+            case AUDIO -> "audio";
+            case COVER -> "cover";
+            case AVATAR -> "avatar";
+        };
+    }
+
     /**
      * 上传文件：生成 {@code 前缀/yyyy/MM/UUID.ext} 形式的 key 并流式写入。
+     *
+     * <p>Content-Type 由服务端按桶类型+扩展名固定（图片桶映射到安全的 image/*），
+     * <b>不信任客户端传入的 Content-Type</b>，避免「伪装成图片的可执行/HTML 内容
+     * 经公开直链被浏览器当脚本渲染」的存储型风险。</p>
      */
     @Override
     public String upload(BucketType bucket, MultipartFile file) {
         String ext = extractExtension(file.getOriginalFilename());
-        String prefix = bucket == BucketType.AUDIO ? "audio" : "cover";
-        String key = prefix + "/" + LocalDate.now().format(MONTH_PATH)
+        String key = keyPrefix(bucket) + "/" + LocalDate.now().format(MONTH_PATH)
                 + "/" + UUID.randomUUID().toString().replace("-", "") + ext;
         try (InputStream in = file.getInputStream()) {
             client.putObject(PutObjectArgs.builder()
                     .bucket(bucketName(bucket))
                     .object(key)
                     .stream(in, file.getSize(), -1)
-                    .contentType(file.getContentType())
+                    .contentType(resolveContentType(bucket, ext))
                     .build());
         } catch (Exception e) {
             throw new BizException(ResultCode.INTERNAL_ERROR, "文件上传失败: " + e.getMessage());
@@ -135,6 +148,31 @@ public class MinioStorageService implements StorageService {
             throw new BizException(ResultCode.INTERNAL_ERROR, "枚举对象失败: " + e.getMessage());
         }
         return objects;
+    }
+
+    /**
+     * 按桶类型与扩展名解析服务端固定的 Content-Type。
+     *
+     * <p>图片桶（COVER/AVATAR）按扩展名映射到 {@code image/*} 安全类型，
+     * 未知扩展名退化为 {@code application/octet-stream}（浏览器不会当页面渲染）；
+     * 音频桶给通用音频类型。全程不采用客户端上送的 Content-Type。</p>
+     *
+     * @param bucket 桶类型
+     * @param ext    扩展名（含点，小写，如 ".png"）
+     * @return 固定的 Content-Type
+     */
+    private String resolveContentType(BucketType bucket, String ext) {
+        if (bucket == BucketType.AUDIO) {
+            return "audio/mpeg";
+        }
+        // 图片桶：按扩展名给安全 image/* 类型，未知则用八位字节流（不被当作可渲染内容）
+        return switch (ext) {
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".png" -> "image/png";
+            case ".webp" -> "image/webp";
+            case ".gif" -> "image/gif";
+            default -> "application/octet-stream";
+        };
     }
 
     /**
