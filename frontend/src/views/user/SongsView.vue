@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { listPublicSongs } from '@/api/song'
 import { usePlayerStore } from '@/stores/player'
 import type { SongVO } from '@/api/types'
@@ -7,8 +8,10 @@ import type { SongVO } from '@/api/types'
 /**
  * 歌曲广场（用户端默认首页）：搜索 + 卡片网格/列表行切换 + 分页。
  * 点歌交全局播放器 store，并把当前页全部歌曲作为播放队列（支持上一/下一首）。
+ * 点「详情」进歌曲详情页（歌词/评分/评论）。
  */
 const player = usePlayerStore()
+const router = useRouter()
 
 const songs = ref<SongVO[]>([])
 const total = ref(0)
@@ -56,6 +59,11 @@ function onPageChange(p: number) {
 /** 点歌播放：把当前页作为播放队列传入。 */
 function playSong(song: SongVO) {
   player.play(song, songs.value)
+}
+
+/** 进入歌曲详情页。 */
+function goDetail(song: SongVO) {
+  router.push(`/songs/${song.sid}`)
 }
 
 /** 该歌是否正在播放（高亮用）。 */
@@ -114,6 +122,9 @@ function isPlaying(song: SongVO): boolean {
               <span>{{ fmt(s.duration) }}</span>
               <span>▶ {{ s.playCount }}</span>
             </div>
+            <el-button link type="primary" size="small" class="detail-link" @click.stop="goDetail(s)">
+              详情
+            </el-button>
           </div>
         </el-card>
       </div>
@@ -137,9 +148,10 @@ function isPlaying(song: SongVO): boolean {
           <template #default="{ row }">{{ fmt(row.duration) }}</template>
         </el-table-column>
         <el-table-column prop="playCount" label="播放量" width="100" />
-        <el-table-column label="操作" width="90">
+        <el-table-column label="操作" width="140">
           <template #default="{ row }">
             <el-button circle size="small" type="primary" :icon="'VideoPlay'" @click.stop="playSong(row)" />
+            <el-button size="small" @click.stop="goDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>

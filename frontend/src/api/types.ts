@@ -174,6 +174,35 @@ export interface OrphanScanVO {
   orphanKeys: string[]
 }
 
+/** 评论项（主评论）。 */
+export interface CommentVO {
+  cid: number
+  uid: number
+  nickname: string | null
+  avatar: string | null
+  content: string
+  likeCount: number
+  likedByMe: boolean
+  replyCount: number
+  createTime: string
+}
+
+/** 发表评论请求体。parentCid 传则为回复（本轮只发主评论，不传）。 */
+export interface CommentCreateDTO {
+  sid: number
+  content: string
+  parentCid?: number
+}
+
+/** 歌曲评分概况。 */
+export interface RatingSummaryVO {
+  sid: number
+  avgScore: number
+  ratingCount: number
+  /** 我的评分；游客或未评过为 null。 */
+  myScore: number | null
+}
+
 /** 角色码常量。 */
 export const Role = {
   NORMAL: 0,

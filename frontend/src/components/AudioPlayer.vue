@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePlayerStore } from '@/stores/player'
 
 /**
@@ -12,7 +13,13 @@ import { usePlayerStore } from '@/stores/player'
  * 「边放边加载」由浏览器对预签名 URL 的 HTTP Range 原生支持，无需额外处理。
  */
 const player = usePlayerStore()
+const router = useRouter()
 const audioRef = ref<HTMLAudioElement>()
+
+/** 点歌名/封面进入该歌详情页。 */
+function openDetail() {
+  if (player.current) router.push(`/songs/${player.current.sid}`)
+}
 
 /** 当前播放秒数与总时长（秒）。 */
 const currentTime = ref(0)
@@ -102,8 +109,8 @@ watch(volume, (v) => {
       @ended="onEnded"
     />
 
-    <!-- 左：歌曲信息 -->
-    <div class="info">
+    <!-- 左：歌曲信息（点击进详情） -->
+    <div class="info" @click="openDetail">
       <el-image :src="player.current?.cover ?? undefined" class="cover" fit="cover">
         <template #error><div class="cover-ph">🎵</div></template>
       </el-image>
@@ -169,6 +176,7 @@ watch(volume, (v) => {
   align-items: center;
   gap: 12px;
   width: 240px;
+  cursor: pointer;
 }
 .cover {
   width: 48px;
