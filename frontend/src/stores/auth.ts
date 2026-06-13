@@ -30,6 +30,8 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (state): boolean => !!state.token,
     /** 是否管理员（role=2）。 */
     isAdmin: (state): boolean => state.user?.role === Role.ADMIN,
+    /** 是否上传者及以上（role≥1，可用上传工作台）。 */
+    isUploader: (state): boolean => (state.user?.role ?? -1) >= Role.UPLOADER,
     /** 当前用户角色（未登录返回 null）。 */
     role: (state): number | null => state.user?.role ?? null,
   },

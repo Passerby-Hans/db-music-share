@@ -40,6 +40,24 @@ const routes: RouteRecordRaw[] = [
         name: 'profile',
         component: () => import('@/views/user/ProfileView.vue'),
       },
+      {
+        path: 'uploader/upload',
+        name: 'uploader-upload',
+        component: () => import('@/views/uploader/UploadView.vue'),
+        meta: { requireUploader: true },
+      },
+      {
+        path: 'uploader/songs',
+        name: 'uploader-songs',
+        component: () => import('@/views/uploader/MySongsView.vue'),
+        meta: { requireUploader: true },
+      },
+      {
+        path: 'uploader/albums',
+        name: 'uploader-albums',
+        component: () => import('@/views/uploader/MyAlbumsView.vue'),
+        meta: { requireUploader: true },
+      },
     ],
   },
   {
@@ -85,6 +103,12 @@ router.beforeEach((to) => {
 
   if (to.meta.requireAdmin && auth.user?.role !== Role.ADMIN) {
     ElMessage.error('需要管理员权限')
+    return { path: '/songs' }
+  }
+
+  // 上传者工作台：需 role≥1（上传者或管理员）
+  if (to.meta.requireUploader && (auth.role === null || auth.role < Role.UPLOADER)) {
+    ElMessage.error('需要上传者权限')
     return { path: '/songs' }
   }
 

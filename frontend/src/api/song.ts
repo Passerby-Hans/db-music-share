@@ -1,5 +1,5 @@
 import http from './http'
-import type { PageResult, SongDetailVO, SongVO } from './types'
+import type { PageResult, SongDetailVO, SongUpdateDTO, SongUploadDTO, SongVO } from './types'
 
 /**
  * 歌曲查询接口（公开口径A：已审核 + 未删）。均需登录。
@@ -38,4 +38,50 @@ export function getSongDetail(sid: number): Promise<SongDetailVO> {
  */
 export function getPlayUrl(sid: number): Promise<string> {
   return http.get(`/song/public/${sid}/play-url`) as unknown as Promise<string>
+}
+
+// ============================ 上传者工作台 ============================
+
+/**
+ * 上传歌曲（建歌，待审）。专辑归属三选一见 {@link SongUploadDTO}。
+ * @param dto 建歌参数（audioPath 为先传文件拿到的 key）
+ * @returns 新歌曲 sid
+ */
+export function uploadSong(dto: SongUploadDTO): Promise<number> {
+  return http.post('/song', dto) as unknown as Promise<number>
+}
+
+/**
+ * 我的上传（口径B：本人 + 未删，任意审核态），分页。
+ * @param page 页码
+ * @param size 每页条数
+ */
+export function listMySongs(page: number, size: number): Promise<PageResult<SongVO>> {
+  return http.get('/song/mine', { params: { page, size } }) as unknown as Promise<PageResult<SongVO>>
+}
+
+/**
+ * 修改歌曲元信息（本人/管理员）。上传者改后审核态回退待审。
+ * @param sid 歌曲 sid
+ * @param dto 新元信息
+ */
+export function updateSong(sid: number, dto: SongUpdateDTO): Promise<void> {
+  return http.put(`/song/${sid}`, dto) as unknown as Promise<void>
+}
+
+/**
+ * 移动歌曲到另一专辑（本人/管理员）。
+ * @param sid 歌曲 sid
+ * @param targetAlbumAid 目标专辑 aid
+ */
+export function moveSong(sid: number, targetAlbumAid: number): Promise<void> {
+  return http.put(`/song/${sid}/album`, { targetAlbumAid }) as unknown as Promise<void>
+}
+
+/**
+ * 软删除歌曲（本人/管理员）。删除即物理删其音频与封面文件。
+ * @param sid 歌曲 sid
+ */
+export function deleteSong(sid: number): Promise<void> {
+  return http.delete(`/song/${sid}`) as unknown as Promise<void>
 }

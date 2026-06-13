@@ -98,9 +98,61 @@ export interface SongDetailVO extends SongVO {
   createTime: string
 }
 
+/** 专辑视图（列表/详情的 album）。 */
+export interface AlbumVO {
+  aid: number
+  albumName: string
+  cover: string | null
+  releaseDate: string | null
+  introduction: string | null
+  /** 是否系统托管的缺省专辑（true 则禁改禁删）。 */
+  isDefault: boolean
+  creatorUid: number
+}
+
+/** 上传歌曲请求体。专辑归属三选一：albumAid / newAlbumName / 都不传(缺省专辑)。 */
+export interface SongUploadDTO {
+  title: string
+  audioPath: string
+  cover?: string
+  duration?: number
+  lyric?: string
+  albumAid?: number
+  newAlbumName?: string
+}
+
+/** 修改歌曲元信息请求体（不含专辑归属与审核态）。 */
+export interface SongUpdateDTO {
+  title: string
+  cover?: string
+  duration?: number
+  lyric?: string
+}
+
+/** 新建/修改专辑请求体。 */
+export interface AlbumDTO {
+  albumName: string
+  cover?: string
+  releaseDate?: string
+  introduction?: string
+}
+
+/** 专辑详情（含其下可见歌曲）。 */
+export interface AlbumDetailVO {
+  album: AlbumVO
+  songs: SongVO[]
+}
+
 /** 角色码常量。 */
 export const Role = {
   NORMAL: 0,
   UPLOADER: 1,
   ADMIN: 2,
+} as const
+
+/** 审核状态常量。 */
+export const AuditStatus = {
+  PENDING: 0,
+  PASSED: 1,
+  REJECTED: 2,
 } as const
