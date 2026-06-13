@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePlayerStore } from '@/stores/player'
 
@@ -35,12 +35,16 @@ function fmt(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-// 切歌：URL 变了就重新加载并按意图播放
+// 切歌：URL 变了就重新加载并按意图播放。
+// flush:'post' + nextTick 确保 <audio> 元素已渲染——首次点歌时播放条由 v-if 刚显示，
+// audio 元素此刻才挂载，否则 audioRef 为空导致「首次点歌不播、要点两次」。
 watch(
   () => player.currentUrl,
   async (url) => {
+    if (!url) return
+    await nextTick()
     const el = audioRef.value
-    if (!el || !url) return
+    if (!el) return
     el.src = url
     currentTime.value = 0
     if (player.playing) {
@@ -52,6 +56,7 @@ watch(
       }
     }
   },
+  { flush: 'post' },
 )
 
 // 播放/暂停意图变化
