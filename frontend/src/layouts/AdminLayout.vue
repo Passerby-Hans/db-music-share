@@ -12,7 +12,7 @@ const router = useRouter()
 
 /** 返回用户端。 */
 function backToUser() {
-  router.push('/home')
+  router.push('/songs')
 }
 
 /** 登出。 */

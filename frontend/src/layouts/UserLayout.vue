@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import AudioPlayer from '@/components/AudioPlayer.vue'
 
 /**
  * 用户端布局外壳：顶栏（站点名 + 导航 + 用户区）+ 内容路由出口。
@@ -24,9 +25,9 @@ async function handleLogout() {
 <template>
   <el-container class="layout">
     <el-header class="header">
-      <div class="brand" @click="router.push('/home')">🎵 在线音乐分享</div>
+      <div class="brand" @click="router.push('/songs')">🎵 在线音乐分享</div>
       <el-menu mode="horizontal" :ellipsis="false" router class="nav">
-        <el-menu-item index="/home">首页</el-menu-item>
+        <el-menu-item index="/songs">歌曲广场</el-menu-item>
         <el-menu-item index="/profile">个人中心</el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin/dashboard">管理后台</el-menu-item>
       </el-menu>
@@ -38,6 +39,8 @@ async function handleLogout() {
     <el-main class="main">
       <router-view />
     </el-main>
+    <!-- 全局播放条：常驻底部，切页面不中断播放 -->
+    <AudioPlayer />
   </el-container>
 </template>
 
@@ -73,5 +76,7 @@ async function handleLogout() {
 }
 .main {
   background: var(--el-bg-color-page);
+  /* 给底部常驻播放条留出空间，避免内容被遮挡 */
+  padding-bottom: 96px;
 }
 </style>

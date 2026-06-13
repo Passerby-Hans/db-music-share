@@ -36,7 +36,7 @@ async function onSubmit() {
     await auth.login({ username: form.username, password: form.password })
     ElMessage.success('登录成功')
     // 回跳到登录前想去的页面，否则首页
-    const redirect = (route.query.redirect as string) || '/home'
+    const redirect = (route.query.redirect as string) || '/songs'
     router.replace(redirect)
   } finally {
     loading.value = false

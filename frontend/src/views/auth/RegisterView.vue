@@ -46,7 +46,7 @@ async function onSubmit() {
     })
     ElMessage.success('注册成功，正在登录…')
     await auth.login({ username: form.username, password: form.password })
-    router.replace('/home')
+    router.replace('/songs')
   } finally {
     loading.value = false
   }

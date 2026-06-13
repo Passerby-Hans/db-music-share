@@ -64,6 +64,40 @@ export interface UploadResultVO {
   url: string | null
 }
 
+/**
+ * 分页结果通用包装，对齐后端 PageVO（records/total/page/size）。
+ * @template T 列表项类型
+ */
+export interface PageResult<T> {
+  records: T[]
+  total: number
+  page: number
+  size: number
+}
+
+/** 歌曲列表项（GET /api/song/public 的 records 项）。cover 已为公开直链。 */
+export interface SongVO {
+  sid: number
+  title: string
+  /** 封面公开直链（后端已 publicUrl 包装，可能为 null）。 */
+  cover: string | null
+  /** 时长（秒），可空。 */
+  duration: number | null
+  playCount: number
+  albumAid: number
+  uploaderUid: number
+  /** 审核状态：0 待审 / 1 通过 / 2 驳回。 */
+  auditStatus: number
+  auditRemark: string | null
+}
+
+/** 歌曲详情（GET /api/song/public/{sid}），比列表项多歌词/音频/上传时间。 */
+export interface SongDetailVO extends SongVO {
+  lyric: string | null
+  audioPath: string | null
+  createTime: string
+}
+
 /** 角色码常量。 */
 export const Role = {
   NORMAL: 0,

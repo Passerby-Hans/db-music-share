@@ -28,12 +28,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/UserLayout.vue'),
-    redirect: '/home',
+    redirect: '/songs',
     children: [
       {
-        path: 'home',
-        name: 'home',
-        component: () => import('@/views/user/HomeView.vue'),
+        path: 'songs',
+        name: 'songs',
+        component: () => import('@/views/user/SongsView.vue'),
       },
       {
         path: 'profile',
@@ -56,7 +56,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   // 兜底：未匹配路由回首页
-  { path: '/:pathMatch(.*)*', redirect: '/home' },
+  { path: '/:pathMatch(.*)*', redirect: '/songs' },
 ]
 
 const router = createRouter({
@@ -76,7 +76,7 @@ router.beforeEach((to) => {
 
   if (isPublic) {
     // 已登录用户不必再看登录/注册页
-    return auth.isLoggedIn ? { path: '/home' } : true
+    return auth.isLoggedIn ? { path: '/songs' } : true
   }
 
   if (!auth.isLoggedIn) {
@@ -85,7 +85,7 @@ router.beforeEach((to) => {
 
   if (to.meta.requireAdmin && auth.user?.role !== Role.ADMIN) {
     ElMessage.error('需要管理员权限')
-    return { path: '/home' }
+    return { path: '/songs' }
   }
 
   return true
