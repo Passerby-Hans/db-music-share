@@ -71,6 +71,21 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-dashboard',
         component: () => import('@/views/admin/DashboardView.vue'),
       },
+      {
+        path: 'audit',
+        name: 'admin-audit',
+        component: () => import('@/views/admin/AuditView.vue'),
+      },
+      {
+        path: 'users',
+        name: 'admin-users',
+        component: () => import('@/views/admin/UsersView.vue'),
+      },
+      {
+        path: 'storage',
+        name: 'admin-storage',
+        component: () => import('@/views/admin/StorageView.vue'),
+      },
     ],
   },
   // 兜底：未匹配路由回首页

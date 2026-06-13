@@ -143,11 +143,48 @@ export interface AlbumDetailVO {
   songs: SongVO[]
 }
 
+/** 歌曲审核请求体。pass=true 通过；false 驳回（remark 必填）。 */
+export interface SongAuditDTO {
+  pass: boolean
+  remark?: string
+}
+
+/** 管理后台用户视图（比 UserInfo 多 status）。 */
+export interface AdminUserVO {
+  uid: number
+  username: string
+  nickname: string
+  email: string | null
+  avatar: string | null
+  role: number
+  /** 账号状态：0 正常 / 1 封禁。 */
+  status: number
+  regTime: string
+}
+
+/** 孤儿扫描结果。 */
+export interface OrphanScanVO {
+  dryRun: boolean
+  safeMinutes: number
+  audioScanned: number
+  coverScanned: number
+  orphanCount: number
+  deletedCount: number
+  /** 孤儿清单，格式 桶类型:objectKey（AUDIO/COVER）。 */
+  orphanKeys: string[]
+}
+
 /** 角色码常量。 */
 export const Role = {
   NORMAL: 0,
   UPLOADER: 1,
   ADMIN: 2,
+} as const
+
+/** 账号状态常量。 */
+export const UserStatus = {
+  NORMAL: 0,
+  BANNED: 1,
 } as const
 
 /** 审核状态常量。 */
