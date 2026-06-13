@@ -187,6 +187,19 @@ export interface CommentVO {
   createTime: string
 }
 
+/** 回复项（挂在主评论下，含 parentCid、无 replyCount）。 */
+export interface CommentReplyVO {
+  cid: number
+  parentCid: number
+  uid: number
+  nickname: string | null
+  avatar: string | null
+  content: string
+  likeCount: number
+  likedByMe: boolean
+  createTime: string
+}
+
 /** 发表评论请求体。parentCid 传则为回复（本轮只发主评论，不传）。 */
 export interface CommentCreateDTO {
   sid: number

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSongDetail } from '@/api/song'
 import { getRatingSummary, submitRating, removeRating } from '@/api/rating'
-import { listSongComments, createComment, likeComment, unlikeComment, deleteComment } from '@/api/comment'
+import { listSongComments, listReplies, createComment, likeComment, unlikeComment, deleteComment } from '@/api/comment'
 import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
-import { Role, type CommentVO, type RatingSummaryVO, type SongDetailVO } from '@/api/types'
+import { Role, type CommentReplyVO, type CommentVO, type RatingSummaryVO, type SongDetailVO } from '@/api/types'
 
 /**
  * 歌曲详情页：歌曲信息 + 歌词 + 评分 + 主评论区。
@@ -115,8 +115,8 @@ async function post() {
   }
 }
 
-/** 点赞/取消点赞（本地乐观更新 + 调接口）。 */
-async function toggleLike(c: CommentVO) {
+/** 点赞/取消点赞（主评论或回复均可，本地乐观更新 + 调接口）。 */
+async function toggleLike(c: CommentVO | CommentReplyVO) {
   try {
     if (c.likedByMe) {
       await unlikeComment(c.cid)
@@ -132,17 +132,83 @@ async function toggleLike(c: CommentVO) {
   }
 }
 
-/** 删除评论（本人或管理员）。 */
+/** 删除主评论（本人或管理员）。删主评论会级联删其回复。 */
 async function onDeleteComment(c: CommentVO) {
-  await ElMessageBox.confirm('确定删除这条评论？', '删除确认', { type: 'warning' })
+  await ElMessageBox.confirm('确定删除这条评论？其下回复将一并删除。', '删除确认', { type: 'warning' })
   await deleteComment(c.cid)
   ElMessage.success('已删除')
   await loadComments()
 }
 
-/** 是否可删该评论（本人或管理员）。 */
-function canDelete(c: CommentVO): boolean {
+/** 是否可删该评论/回复（本人或管理员）。 */
+function canDelete(c: CommentVO | CommentReplyVO): boolean {
   return auth.user?.uid === c.uid || auth.user?.role === Role.ADMIN
+}
+
+// —— 回复（两层盖楼）——
+/** 每条主评论的回复状态：是否展开、回复列表、回复输入框、发表中。 */
+interface ReplyState {
+  open: boolean
+  list: CommentReplyVO[]
+  input: string
+  loading: boolean
+  posting: boolean
+}
+const replyMap = reactive<Record<number, ReplyState>>({})
+
+function ensureReplyState(cid: number): ReplyState {
+  if (!replyMap[cid]) {
+    replyMap[cid] = { open: false, list: [], input: '', loading: false, posting: false }
+  }
+  return replyMap[cid]
+}
+
+/** 展开/收起某主评论的回复；首次展开时拉取。 */
+async function toggleReplies(c: CommentVO) {
+  const st = ensureReplyState(c.cid)
+  st.open = !st.open
+  if (st.open && st.list.length === 0 && c.replyCount > 0) {
+    st.loading = true
+    try {
+      const res = await listReplies(c.cid, 1, 100)
+      st.list = res.records
+    } finally {
+      st.loading = false
+    }
+  }
+}
+
+/** 在某主评论下发表回复（parentCid 指向主评论）。 */
+async function postReply(c: CommentVO) {
+  const st = ensureReplyState(c.cid)
+  const text = st.input.trim()
+  if (!text) {
+    ElMessage.warning('回复内容不能为空')
+    return
+  }
+  st.posting = true
+  try {
+    await createComment({ sid, content: text, parentCid: c.cid })
+    ElMessage.success('已回复')
+    st.input = ''
+    // 重新拉该主评论的回复并刷新回复数
+    const res = await listReplies(c.cid, 1, 100)
+    st.list = res.records
+    c.replyCount = res.total
+    st.open = true
+  } finally {
+    st.posting = false
+  }
+}
+
+/** 删除一条回复（本人或管理员），从本地列表移除并减回复数。 */
+async function onDeleteReply(c: CommentVO, r: CommentReplyVO) {
+  await ElMessageBox.confirm('确定删除这条回复？', '删除确认', { type: 'warning' })
+  await deleteComment(r.cid)
+  ElMessage.success('已删除')
+  const st = ensureReplyState(c.cid)
+  st.list = st.list.filter((x) => x.cid !== r.cid)
+  c.replyCount = Math.max(0, c.replyCount - 1)
 }
 
 const avgText = computed(() =>
@@ -233,7 +299,10 @@ onMounted(() => {
               <span class="like" :class="{ liked: c.likedByMe }" @click="toggleLike(c)">
                 ♥ {{ c.likeCount }}
               </span>
-              <span class="reply-count">回复 {{ c.replyCount }}</span>
+              <span class="reply-toggle" @click="toggleReplies(c)">
+                回复 {{ c.replyCount }}
+                <span class="caret">{{ replyMap[c.cid]?.open ? '▲' : '▼' }}</span>
+              </span>
               <el-button
                 v-if="canDelete(c)"
                 link
@@ -243,6 +312,58 @@ onMounted(() => {
               >
                 删除
               </el-button>
+            </div>
+
+            <!-- 回复区（展开时） -->
+            <div v-if="replyMap[c.cid]?.open" class="reply-zone" v-loading="replyMap[c.cid]?.loading">
+              <!-- 回复发表框（登录可见） -->
+              <div v-if="auth.isLoggedIn" class="reply-post">
+                <el-input
+                  v-model="replyMap[c.cid].input"
+                  size="small"
+                  maxlength="500"
+                  placeholder="回复…"
+                  @keyup.enter="postReply(c)"
+                />
+                <el-button
+                  size="small"
+                  type="primary"
+                  :loading="replyMap[c.cid].posting"
+                  @click="postReply(c)"
+                >
+                  回复
+                </el-button>
+              </div>
+              <!-- 回复列表 -->
+              <div v-for="r in replyMap[c.cid].list" :key="r.cid" class="reply-item">
+                <el-avatar :size="28" :src="r.avatar ?? undefined">{{ r.nickname?.[0] }}</el-avatar>
+                <div class="r-body">
+                  <div class="r-head">
+                    <span class="r-name">{{ r.nickname ?? '已注销用户' }}</span>
+                    <span class="r-time">{{ r.createTime?.slice(0, 19).replace('T', ' ') }}</span>
+                  </div>
+                  <div class="r-content">{{ r.content }}</div>
+                  <div class="r-actions">
+                    <span class="like" :class="{ liked: r.likedByMe }" @click="toggleLike(r)">
+                      ♥ {{ r.likeCount }}
+                    </span>
+                    <el-button
+                      v-if="canDelete(r)"
+                      link
+                      type="danger"
+                      size="small"
+                      @click="onDeleteReply(c, r)"
+                    >
+                      删除
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+              <el-empty
+                v-if="!replyMap[c.cid].loading && replyMap[c.cid].list.length === 0"
+                description="还没有回复"
+                :image-size="40"
+              />
             </div>
           </div>
         </div>
@@ -378,6 +499,61 @@ onMounted(() => {
 }
 .like.liked {
   color: var(--el-color-danger);
+}
+.reply-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.caret {
+  font-size: 10px;
+}
+.reply-zone {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+}
+.reply-post {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.reply-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.reply-item:last-child {
+  border-bottom: none;
+}
+.r-body {
+  flex: 1;
+}
+.r-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.r-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.r-time {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.r-content {
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.r-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .pager {
   display: flex;

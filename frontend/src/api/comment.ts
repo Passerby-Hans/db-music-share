@@ -1,5 +1,5 @@
 import http from './http'
-import type { CommentCreateDTO, CommentVO, PageResult } from './types'
+import type { CommentCreateDTO, CommentReplyVO, CommentVO, PageResult } from './types'
 
 /**
  * 评论接口。查看类软鉴权（登录带 token 回填 likedByMe）；
@@ -20,6 +20,22 @@ export function listSongComments(
   return http.get(`/comment/song/${sid}`, {
     params: { page, size },
   }) as unknown as Promise<PageResult<CommentVO>>
+}
+
+/**
+ * 某主评论的回复分页（按时间正序，盖楼阅读）。
+ * @param cid 主评论 cid
+ * @param page 页码
+ * @param size 每页条数
+ */
+export function listReplies(
+  cid: number,
+  page: number,
+  size: number,
+): Promise<PageResult<CommentReplyVO>> {
+  return http.get(`/comment/${cid}/replies`, {
+    params: { page, size },
+  }) as unknown as Promise<PageResult<CommentReplyVO>>
 }
 
 /**
