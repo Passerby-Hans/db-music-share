@@ -28,6 +28,9 @@ async function handleLogout() {
       <div class="brand" @click="router.push('/songs')">🎵 在线音乐分享</div>
       <el-menu mode="horizontal" :ellipsis="false" router class="nav">
         <el-menu-item index="/songs">歌曲广场</el-menu-item>
+        <el-menu-item index="/albums">专辑</el-menu-item>
+        <el-menu-item index="/favorites">我的收藏</el-menu-item>
+        <el-menu-item index="/playlists">我的歌单</el-menu-item>
         <el-sub-menu v-if="auth.isUploader" index="uploader">
           <template #title>上传工作台</template>
           <el-menu-item index="/uploader/upload">上传歌曲</el-menu-item>

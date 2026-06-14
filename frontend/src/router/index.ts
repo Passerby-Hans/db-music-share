@@ -41,9 +41,34 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/user/SongDetailView.vue'),
       },
       {
+        path: 'albums',
+        name: 'albums',
+        component: () => import('@/views/user/AlbumsView.vue'),
+      },
+      {
+        path: 'albums/:aid',
+        name: 'album-detail',
+        component: () => import('@/views/user/AlbumDetailView.vue'),
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/user/ProfileView.vue'),
+      },
+      {
+        path: 'favorites',
+        name: 'favorites',
+        component: () => import('@/views/user/FavoritesView.vue'),
+      },
+      {
+        path: 'playlists',
+        name: 'playlists',
+        component: () => import('@/views/user/PlaylistsView.vue'),
+      },
+      {
+        path: 'playlists/:plid',
+        name: 'playlist-detail',
+        component: () => import('@/views/user/PlaylistDetailView.vue'),
       },
       {
         path: 'uploader/upload',

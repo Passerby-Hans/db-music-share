@@ -6,6 +6,22 @@ import type { AlbumDTO, AlbumDetailVO, AlbumVO, PageResult } from './types'
  */
 
 /**
+ * 公开专辑列表（未删），可按专辑名模糊搜索，分页。
+ * @param keyword 关键词，可空
+ * @param page 页码
+ * @param size 每页条数
+ */
+export function listPublicAlbums(
+  keyword: string,
+  page: number,
+  size: number,
+): Promise<PageResult<AlbumVO>> {
+  return http.get('/album/public', {
+    params: { keyword: keyword || undefined, page, size },
+  }) as unknown as Promise<PageResult<AlbumVO>>
+}
+
+/**
  * 我创建的专辑（含为单曲自动生成的缺省专辑），分页。
  * @param page 页码
  * @param size 每页条数

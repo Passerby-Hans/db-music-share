@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, reactive } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSongDetail } from '@/api/song'
+import { getAlbumDetail } from '@/api/album'
 import { getRatingSummary, submitRating, removeRating } from '@/api/rating'
 import { listSongComments, listReplies, createComment, likeComment, unlikeComment, deleteComment } from '@/api/comment'
+import { getFavoriteStatus, favorite, unfavorite } from '@/api/favorite'
+import { listMyPlaylists, addSongToPlaylist } from '@/api/playlist'
 import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
-import { Role, type CommentReplyVO, type CommentVO, type RatingSummaryVO, type SongDetailVO } from '@/api/types'
+import { Role, type CommentReplyVO, type CommentVO, type PlaylistVO, type RatingSummaryVO, type SongDetailVO } from '@/api/types'
 
 /**
  * 歌曲详情页：歌曲信息 + 歌词 + 评分 + 主评论区。
  * 评分用 el-rate（提交即 upsert，可撤销）；评论支持发表/点赞/删除（本人或管理员），本轮不含回复。
  */
 const route = useRoute()
+const router = useRouter()
 const player = usePlayerStore()
 const auth = useAuthStore()
 
@@ -21,6 +25,8 @@ const sid = Number(route.params.sid)
 
 const song = ref<SongDetailVO | null>(null)
 const loadingSong = ref(false)
+/** 所属专辑名（用 albumAid 查得，用于展示链接）。 */
+const albumName = ref('')
 
 /** 时长秒 → mm:ss。 */
 function fmt(sec: number | null): string {
@@ -32,6 +38,15 @@ async function loadSong() {
   loadingSong.value = true
   try {
     song.value = await getSongDetail(sid)
+    // 用 albumAid 查专辑名（SongDetailVO 只含 albumAid，名字另查）
+    if (song.value?.albumAid) {
+      try {
+        const al = await getAlbumDetail(song.value.albumAid)
+        albumName.value = al.album.albumName
+      } catch {
+        albumName.value = ''
+      }
+    }
   } finally {
     loadingSong.value = false
   }
@@ -40,6 +55,63 @@ async function loadSong() {
 /** 播放本歌（单曲入队）。 */
 function playThis() {
   if (song.value) player.play(song.value)
+}
+
+// —— 收藏 ——
+const faved = ref(false)
+const favLoading = ref(false)
+
+async function loadFavStatus() {
+  if (!auth.isLoggedIn) return
+  faved.value = await getFavoriteStatus(sid)
+}
+
+/** 切换收藏（幂等）。 */
+async function toggleFav() {
+  favLoading.value = true
+  try {
+    if (faved.value) {
+      await unfavorite(sid)
+      faved.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await favorite(sid)
+      faved.value = true
+      ElMessage.success('已收藏')
+    }
+  } finally {
+    favLoading.value = false
+  }
+}
+
+// —— 加入歌单 ——
+const plDialog = ref(false)
+const myPlaylists = ref<PlaylistVO[]>([])
+const plLoading = ref(false)
+const addingPlid = ref<number | null>(null)
+
+/** 打开"加入歌单"弹窗，拉取我的歌单。 */
+async function openAddToPlaylist() {
+  plDialog.value = true
+  plLoading.value = true
+  try {
+    const res = await listMyPlaylists(1, 100)
+    myPlaylists.value = res.records
+  } finally {
+    plLoading.value = false
+  }
+}
+
+/** 把当前歌加入选中的歌单。 */
+async function addTo(p: PlaylistVO) {
+  addingPlid.value = p.plid
+  try {
+    await addSongToPlaylist(p.plid, sid)
+    ElMessage.success(`已加入《${p.playlistName}》`)
+    plDialog.value = false
+  } finally {
+    addingPlid.value = null
+  }
 }
 
 // —— 评分 ——
@@ -219,6 +291,7 @@ onMounted(() => {
   loadSong()
   loadRating()
   loadComments()
+  loadFavStatus()
 })
 </script>
 
@@ -235,6 +308,9 @@ onMounted(() => {
           <div class="meta">
             <span>时长 {{ fmt(song.duration) }}</span>
             <span>播放量 {{ song.playCount }}</span>
+            <span v-if="albumName" class="album-link" @click="router.push(`/albums/${song.albumAid}`)">
+              专辑：{{ albumName }}
+            </span>
           </div>
           <div class="rate-line">
             <span class="rate-label">评分</span>
@@ -254,7 +330,18 @@ onMounted(() => {
               撤销评分
             </el-button>
           </div>
-          <el-button type="primary" :icon="'VideoPlay'" @click="playThis">播放</el-button>
+          <div class="action-row">
+            <el-button type="primary" :icon="'VideoPlay'" @click="playThis">播放</el-button>
+            <el-button
+              v-if="auth.isLoggedIn"
+              :type="faved ? 'danger' : 'default'"
+              :loading="favLoading"
+              @click="toggleFav"
+            >
+              {{ faved ? '♥ 已收藏' : '♡ 收藏' }}
+            </el-button>
+            <el-button v-if="auth.isLoggedIn" @click="openAddToPlaylist">加入歌单</el-button>
+          </div>
         </div>
       </div>
     </el-card>
@@ -379,6 +466,26 @@ onMounted(() => {
         />
       </div>
     </el-card>
+
+    <!-- 加入歌单弹窗 -->
+    <el-dialog v-model="plDialog" title="加入歌单" width="420px">
+      <div v-loading="plLoading">
+        <el-empty v-if="!plLoading && myPlaylists.length === 0" description="还没有歌单，先去「我的歌单」创建" />
+        <div v-for="p in myPlaylists" :key="p.plid" class="pl-row">
+          <div class="pl-meta">
+            <span class="pl-nm">{{ p.playlistName }}</span>
+            <span class="pl-cnt">{{ p.songCount }} 首 · {{ p.isPublic ? '公开' : '私密' }}</span>
+          </div>
+          <el-button
+            size="small" type="primary"
+            :loading="addingPlid === p.plid"
+            @click="addTo(p)"
+          >
+            加入
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -424,6 +531,32 @@ onMounted(() => {
   gap: 20px;
   color: var(--el-text-color-secondary);
   font-size: 14px;
+}
+.album-link {
+  color: var(--el-color-primary);
+  cursor: pointer;
+}
+.action-row {
+  display: flex;
+  gap: 12px;
+}
+.pl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.pl-meta {
+  display: flex;
+  flex-direction: column;
+}
+.pl-nm {
+  font-weight: 600;
+}
+.pl-cnt {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .rate-line {
   display: flex;

@@ -216,6 +216,59 @@ export interface RatingSummaryVO {
   myScore: number | null
 }
 
+/** 我的收藏列表项：歌曲精简信息 + 收藏时间 + 是否可播放。 */
+export interface FavoriteSongVO {
+  sid: number
+  title: string
+  cover: string | null
+  duration: number | null
+  playCount: number
+  albumAid: number
+  uploaderUid: number
+  favTime: string
+  /** 是否可播放（已下架/驳回为 false，前端置灰拦播）。 */
+  playable: boolean
+}
+
+/** 歌单列表项。 */
+export interface PlaylistVO {
+  plid: number
+  uid: number
+  playlistName: string
+  description: string | null
+  cover: string | null
+  isPublic: boolean
+  createTime: string
+  songCount: number
+}
+
+/** 新建/修改歌单请求体。 */
+export interface PlaylistDTO {
+  playlistName: string
+  description?: string
+  cover?: string
+  isPublic: boolean
+}
+
+/** 歌单内曲目项（歌曲精简信息 + 加入时间 + 是否可播放）。 */
+export interface PlaylistSongVO {
+  sid: number
+  title: string
+  cover: string | null
+  duration: number | null
+  playCount: number
+  albumAid: number
+  uploaderUid: number
+  addTime: string
+  playable: boolean
+}
+
+/** 歌单详情（元信息 + 曲目分页）。 */
+export interface PlaylistDetailVO {
+  playlist: PlaylistVO
+  songs: PageResult<PlaylistSongVO>
+}
+
 /** 角色码常量。 */
 export const Role = {
   NORMAL: 0,
