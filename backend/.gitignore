@@ -8,6 +8,8 @@ target/
 # 日志与本地文件
 *.log
 nohup.out
+# 日志输出目录（含滚动归档 .gz，整目录不入库）
+logs/
 
 # 本地环境覆盖配置
 application-local.yml
