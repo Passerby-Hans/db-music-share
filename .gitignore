@@ -1,5 +1,7 @@
 # ===== 用户指定不提交的目录 =====
 .claude/
+.superpowers/
+.worktrees/
 .idea/
 docs/
 CLAUDE.md
