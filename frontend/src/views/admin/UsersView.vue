@@ -95,7 +95,12 @@ async function onRoleChange(u: AdminUserVO, newRole: number) {
 </script>
 
 <template>
-  <div class="users">
+  <div class="users app-page-wide">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Users</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">用户管理</h1>
+      <p class="hero-subtitle mt-2">筛选用户、处理封禁状态与角色变更（即时作废旧会话）。</p>
+    </section>
     <el-card>
       <template #header><span>用户管理</span></template>
 

@@ -163,51 +163,58 @@ watch(volume, (v) => {
 <style scoped>
 .player-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 72px;
+  left: 24px;
+  right: 24px;
+  bottom: 18px;
+  height: 78px;
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 0 24px;
-  background: #fff;
-  border-top: 1px solid var(--el-border-color);
-  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  padding: 0 22px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-float, 0 24px 80px rgba(15, 23, 42, 0.14));
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   z-index: 1000;
 }
 .info {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 240px;
+  width: 260px;
+  min-width: 0;
   cursor: pointer;
 }
 .cover {
-  width: 48px;
-  height: 48px;
-  border-radius: 6px;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
   flex-shrink: 0;
 }
 .cover-ph {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--el-fill-color-light);
-  border-radius: 6px;
+  border-radius: 18px;
+  color: #4f46e5;
+  background: linear-gradient(135deg, #dbeafe, #ede9fe);
 }
 .meta {
   min-width: 0;
 }
 .title {
-  font-weight: 600;
+  color: #111827;
+  font-weight: 800;
   font-size: 14px;
 }
 .sub {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: #6b7280;
 }
 .text-ellipsis {
   overflow: hidden;
@@ -234,9 +241,13 @@ watch(volume, (v) => {
 .bar {
   flex: 1;
 }
+.bar :deep(.el-slider__bar),
+.vol-bar :deep(.el-slider__bar) {
+  background: var(--brand-gradient);
+}
 .time {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: #6b7280;
   width: 42px;
   text-align: center;
 }
@@ -244,9 +255,24 @@ watch(volume, (v) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 140px;
+  width: 150px;
+  color: #6366f1;
 }
 .vol-bar {
   flex: 1;
+}
+@media (max-width: 780px) {
+  .player-bar {
+    left: 12px;
+    right: 12px;
+    height: auto;
+    min-height: 92px;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  .info,
+  .volume {
+    width: auto;
+  }
 }
 </style>

@@ -42,7 +42,12 @@ async function doClean() {
 </script>
 
 <template>
-  <div class="storage">
+  <div class="storage app-page-wide">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Storage</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">存储维护</h1>
+      <p class="hero-subtitle mt-2">扫描和清理对象存储中的孤儿文件，支持先演练再执行。</p>
+    </section>
     <el-card>
       <template #header><span>存储维护 · 孤儿文件清理</span></template>
 

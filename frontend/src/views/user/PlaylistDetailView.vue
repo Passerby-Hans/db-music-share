@@ -83,7 +83,12 @@ async function onRemove(s: PlaylistSongVO) {
 </script>
 
 <template>
-  <div class="pl-detail" v-loading="loading">
+  <div class="pl-detail app-page" v-loading="loading">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Playlist</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">{{ playlist?.playlistName ?? '歌单详情' }}</h1>
+      <p class="hero-subtitle mt-2">查看歌单曲目，歌单主人可移除歌曲。</p>
+    </section>
     <el-card v-if="playlist" class="head-card">
       <div class="head">
         <el-image :src="playlist.cover ?? undefined" fit="cover" class="cover">
@@ -141,8 +146,6 @@ async function onRemove(s: PlaylistSongVO) {
 
 <style scoped>
 .pl-detail {
-  max-width: 900px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;

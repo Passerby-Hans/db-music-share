@@ -80,7 +80,12 @@ async function onUnfav(s: FavoriteSongVO) {
 </script>
 
 <template>
-  <div class="favorites">
+  <div class="favorites app-page">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Favorites</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">我的收藏</h1>
+      <p class="hero-subtitle mt-2">你收藏过的歌曲，按时间倒序展示。</p>
+    </section>
     <el-card>
       <template #header><span>我的收藏（{{ total }}）</span></template>
 
@@ -129,8 +134,6 @@ async function onUnfav(s: FavoriteSongVO) {
 
 <style scoped>
 .favorites {
-  max-width: 1000px;
-  margin: 0 auto;
 }
 .cover {
   width: 48px;

@@ -25,7 +25,10 @@ async function handleLogout() {
 <template>
   <el-container class="layout">
     <el-header class="header">
-      <div class="brand" @click="router.push('/songs')">🎵 在线音乐分享</div>
+      <div class="brand" @click="router.push('/songs')">
+        <span class="brand-mark">♪</span>
+        <span>在线音乐分享</span>
+      </div>
       <el-menu mode="horizontal" :ellipsis="false" router class="nav">
         <el-menu-item index="/songs">歌曲广场</el-menu-item>
         <el-menu-item index="/albums">专辑</el-menu-item>
@@ -48,7 +51,6 @@ async function handleLogout() {
     <el-main class="main">
       <router-view />
     </el-main>
-    <!-- 全局播放条：常驻底部，切页面不中断播放 -->
     <AudioPlayer />
   </el-container>
 </template>
@@ -56,36 +58,85 @@ async function handleLogout() {
 <style scoped>
 .layout {
   min-height: 100vh;
+  background: transparent;
 }
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
   display: flex;
   align-items: center;
-  gap: 24px;
-  border-bottom: 1px solid var(--el-border-color);
-  background: #fff;
+  gap: 20px;
+  height: 72px;
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 12px 38px rgba(15, 23, 42, 0.06);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #111827;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 850;
   cursor: pointer;
   white-space: nowrap;
+}
+.brand-mark {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #fff;
+  background: var(--brand-gradient);
+  box-shadow: var(--shadow-button);
 }
 .nav {
   flex: 1;
   border-bottom: none;
+  background: transparent;
+}
+.nav :deep(.el-menu-item),
+.nav :deep(.el-sub-menu__title) {
+  border-radius: 999px;
+  color: #4b5563;
+  font-weight: 650;
+}
+.nav :deep(.el-menu-item.is-active),
+.nav :deep(.el-sub-menu.is-active .el-sub-menu__title) {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.1);
+  border-bottom-color: transparent;
 }
 .user-area {
   display: flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
 }
 .hello {
-  color: var(--el-text-color-regular);
+  color: #4b5563;
   font-size: 14px;
 }
 .main {
-  background: var(--el-bg-color-page);
-  /* 给底部常驻播放条留出空间，避免内容被遮挡 */
-  padding-bottom: 96px;
+  min-height: calc(100vh - 72px);
+  padding: 28px 0 112px;
+  background: transparent;
+}
+@media (max-width: 980px) {
+  .header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 14px;
+  }
+  .nav {
+    order: 3;
+    width: 100%;
+  }
 }
 </style>

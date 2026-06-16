@@ -118,7 +118,12 @@ async function onDelete(s: SongVO) {
 </script>
 
 <template>
-  <div class="my-songs">
+  <div class="my-songs app-page-wide">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Creator Studio</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">我的上传</h1>
+      <p class="hero-subtitle mt-2">管理已上传歌曲，编辑、移动专辑或删除（删除即清文件）。</p>
+    </section>
     <el-card>
       <template #header>
         <div class="card-head">
@@ -206,8 +211,6 @@ async function onDelete(s: SongVO) {
 
 <style scoped>
 .my-songs {
-  max-width: 1000px;
-  margin: 0 auto;
 }
 .card-head {
   display: flex;

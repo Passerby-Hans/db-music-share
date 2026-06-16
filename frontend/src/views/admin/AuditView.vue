@@ -69,7 +69,12 @@ async function reject(s: SongVO) {
 </script>
 
 <template>
-  <div class="audit">
+  <div class="audit app-page-wide">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Review</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">歌曲审核</h1>
+      <p class="hero-subtitle mt-2">审核上传者提交的歌曲，决定公开或驳回。</p>
+    </section>
     <el-card>
       <template #header>
         <div class="head">

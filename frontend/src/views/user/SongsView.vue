@@ -73,14 +73,25 @@ function isPlaying(song: SongVO): boolean {
 </script>
 
 <template>
-  <div class="songs">
-    <!-- 工具栏：搜索 + 视图切换 -->
-    <div class="toolbar">
+  <div class="songs app-page">
+    <section class="page-hero hero p-8">
+      <div>
+        <span class="hero-kicker">Discover</span>
+        <h1 class="hero-title mt-5">发现今天想听的歌</h1>
+        <p class="hero-subtitle mt-4 max-w-2xl">
+          搜索已审核公开的音乐，切换网格或列表视图，点击封面即可开始播放。
+        </p>
+      </div>
+      <div class="hero-disc" aria-hidden="true">♪</div>
+    </section>
+
+    <div class="toolbar toolbar-card mt-6 p-4">
       <el-input
         v-model="keyword"
         placeholder="搜索歌曲标题"
         clearable
         class="search"
+        size="large"
         @keyup.enter="onSearch"
         @clear="onSearch"
       >
@@ -88,32 +99,29 @@ function isPlaying(song: SongVO): boolean {
           <el-button :icon="'Search'" @click="onSearch" />
         </template>
       </el-input>
-      <el-radio-group v-model="view">
+      <el-radio-group v-model="view" size="large">
         <el-radio-button value="grid">网格</el-radio-button>
         <el-radio-button value="list">列表</el-radio-button>
       </el-radio-group>
     </div>
 
-    <div v-loading="loading" class="content">
+    <div v-loading="loading" class="content mt-6">
       <el-empty v-if="!loading && songs.length === 0" description="暂无歌曲" />
 
-      <!-- 网格视图：封面卡片 -->
       <div v-else-if="view === 'grid'" class="grid">
-        <el-card
+        <article
           v-for="s in songs"
           :key="s.sid"
-          class="song-card"
+          class="song-card music-card"
           :class="{ active: isPlaying(s) }"
-          shadow="hover"
-          body-style="padding:0"
           @click="playSong(s)"
         >
           <div class="cover-wrap">
             <el-image :src="s.cover ?? undefined" fit="cover" class="cover">
-              <template #error><div class="cover-ph">🎵</div></template>
+              <template #error><div class="cover-ph">♪</div></template>
             </el-image>
             <div class="play-mask">
-              <el-icon :size="36"><VideoPlay /></el-icon>
+              <el-icon :size="38"><VideoPlay /></el-icon>
             </div>
           </div>
           <div class="card-body">
@@ -123,41 +131,41 @@ function isPlaying(song: SongVO): boolean {
               <span>▶ {{ s.playCount }}</span>
             </div>
             <el-button link type="primary" size="small" class="detail-link" @click.stop="goDetail(s)">
-              详情
+              查看详情
             </el-button>
           </div>
-        </el-card>
+        </article>
       </div>
 
-      <!-- 列表视图：表格行 -->
-      <el-table v-else :data="songs" class="list" @row-click="playSong">
-        <el-table-column label="#" type="index" width="60" />
-        <el-table-column label="封面" width="80">
-          <template #default="{ row }">
-            <el-image :src="row.cover ?? undefined" fit="cover" class="list-cover">
-              <template #error><div class="list-cover-ph">🎵</div></template>
-            </el-image>
-          </template>
-        </el-table-column>
-        <el-table-column prop="title" label="标题" min-width="200">
-          <template #default="{ row }">
-            <span :class="{ 'active-text': isPlaying(row) }">{{ row.title }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="时长" width="100">
-          <template #default="{ row }">{{ fmt(row.duration) }}</template>
-        </el-table-column>
-        <el-table-column prop="playCount" label="播放量" width="100" />
-        <el-table-column label="操作" width="140">
-          <template #default="{ row }">
-            <el-button circle size="small" type="primary" :icon="'VideoPlay'" @click.stop="playSong(row)" />
-            <el-button size="small" @click.stop="goDetail(row)">详情</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-else class="section-card list-wrap p-3">
+        <el-table :data="songs" class="list" @row-click="playSong">
+          <el-table-column label="#" type="index" width="60" />
+          <el-table-column label="封面" width="82">
+            <template #default="{ row }">
+              <el-image :src="row.cover ?? undefined" fit="cover" class="list-cover">
+                <template #error><div class="list-cover-ph">♪</div></template>
+              </el-image>
+            </template>
+          </el-table-column>
+          <el-table-column prop="title" label="标题" min-width="200">
+            <template #default="{ row }">
+              <span :class="{ 'active-text': isPlaying(row) }">{{ row.title }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="时长" width="100">
+            <template #default="{ row }">{{ fmt(row.duration) }}</template>
+          </el-table-column>
+          <el-table-column prop="playCount" label="播放量" width="100" />
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button circle size="small" type="primary" :icon="'VideoPlay'" @click.stop="playSong(row)" />
+              <el-button size="small" @click.stop="goDetail(row)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </div>
 
-    <!-- 分页 -->
     <div class="pager">
       <el-pagination
         layout="prev, pager, next, total"
@@ -171,46 +179,57 @@ function isPlaying(song: SongVO): boolean {
 </template>
 
 <style scoped>
-.songs {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.toolbar {
+.hero {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 32px;
+}
+.hero-disc {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 42px;
+  color: #fff;
+  font-size: 64px;
+  font-weight: 900;
+  background: var(--brand-gradient);
+  box-shadow: 0 24px 80px rgba(99, 102, 241, 0.22);
+  transform: rotate(8deg);
 }
 .search {
-  max-width: 360px;
+  max-width: 420px;
 }
 .content {
-  min-height: 300px;
+  min-height: 320px;
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 18px;
 }
 .song-card {
   cursor: pointer;
-  transition: transform 0.15s;
-}
-.song-card:hover {
-  transform: translateY(-3px);
 }
 .song-card.active {
-  outline: 2px solid var(--el-color-primary);
+  border-color: rgba(99, 102, 241, 0.56);
 }
 .cover-wrap {
   position: relative;
   aspect-ratio: 1;
+  overflow: hidden;
 }
 .cover {
   width: 100%;
   height: 100%;
   display: block;
+  transition: transform 0.22s ease;
+}
+.song-card:hover .cover {
+  transform: scale(1.045);
 }
 .cover-ph,
 .list-cover-ph {
@@ -219,8 +238,9 @@ function isPlaying(song: SongVO): boolean {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #4f46e5;
   font-size: 32px;
-  background: var(--el-fill-color-light);
+  background: linear-gradient(135deg, #dbeafe, #ede9fe);
 }
 .play-mask {
   position: absolute;
@@ -229,40 +249,49 @@ function isPlaying(song: SongVO): boolean {
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: rgba(0, 0, 0, 0.35);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.46));
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s ease;
 }
 .cover-wrap:hover .play-mask {
   opacity: 1;
 }
 .card-body {
-  padding: 10px 12px;
+  padding: 14px 15px 16px;
 }
 .title {
-  font-weight: 600;
-  font-size: 14px;
+  color: #111827;
+  font-weight: 800;
+  font-size: 15px;
 }
 .meta {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+.detail-link {
+  margin-top: 8px;
+  padding: 0;
+  font-weight: 800;
 }
 .text-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.list-wrap {
+  overflow: hidden;
+}
 .list-cover {
-  width: 44px;
-  height: 44px;
-  border-radius: 4px;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
 }
 .active-text {
-  color: var(--el-color-primary);
-  font-weight: 600;
+  color: #4f46e5;
+  font-weight: 800;
 }
 .list :deep(.el-table__row) {
   cursor: pointer;
@@ -270,6 +299,27 @@ function isPlaying(song: SongVO): boolean {
 .pager {
   display: flex;
   justify-content: center;
-  margin-top: 24px;
+  margin-top: 26px;
+}
+@media (max-width: 760px) {
+  .hero {
+    align-items: flex-start;
+  }
+  .hero-disc {
+    display: none;
+  }
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .search {
+    max-width: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .song-card:hover .cover,
+  .cover-wrap:hover .play-mask {
+    transition: none;
+  }
 }
 </style>

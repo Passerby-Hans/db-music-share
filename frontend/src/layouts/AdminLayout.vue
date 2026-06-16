@@ -24,9 +24,12 @@ async function handleLogout() {
 </script>
 
 <template>
-  <el-container class="layout">
-    <el-aside width="200px" class="aside">
-      <div class="title">管理后台</div>
+  <el-container class="admin-shell layout">
+    <el-aside width="232px" class="aside">
+      <div class="title">
+        <span class="title-mark">⌘</span>
+        <span>管理后台</span>
+      </div>
       <el-menu router :default-active="$route.path" class="menu">
         <el-menu-item index="/admin/dashboard">
           <el-icon><DataBoard /></el-icon>
@@ -46,7 +49,7 @@ async function handleLogout() {
         </el-menu-item>
       </el-menu>
       <div class="aside-footer">
-        <el-button link @click="backToUser">← 返回用户端</el-button>
+        <el-button class="back-btn" link @click="backToUser">← 返回用户端</el-button>
       </div>
     </el-aside>
     <el-container>
@@ -66,40 +69,79 @@ async function handleLogout() {
   min-height: 100vh;
 }
 .aside {
-  background: #1d2129;
   display: flex;
   flex-direction: column;
+  margin: 18px 0 18px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 28px;
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
 }
 .title {
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #111827;
   font-size: 18px;
-  font-weight: 600;
-  padding: 18px 20px;
+  font-weight: 850;
+  padding: 20px;
+}
+.title-mark {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #fff;
+  background: var(--brand-gradient);
 }
 .menu {
   flex: 1;
   border-right: none;
+  padding: 0 12px;
   background: transparent;
 }
-.aside-footer {
-  padding: 16px 20px;
+.menu :deep(.el-menu-item) {
+  margin: 6px 0;
+  border-radius: 16px;
+  color: #4b5563;
+  font-weight: 700;
 }
-.aside-footer :deep(.el-button) {
-  color: #c0c4cc;
+.menu :deep(.el-menu-item.is-active) {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.1);
+}
+.aside-footer {
+  padding: 16px 20px 20px;
+}
+.back-btn {
+  color: #4b5563;
+  font-weight: 700;
 }
 .header {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  background: #fff;
-  border-bottom: 1px solid var(--el-border-color);
+  height: 72px;
+  margin: 18px 18px 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 12px 38px rgba(15, 23, 42, 0.06);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
 .admin-hello {
-  color: var(--el-text-color-regular);
+  color: #4b5563;
   font-size: 14px;
+  font-weight: 650;
 }
 .main {
-  background: var(--el-bg-color-page);
+  padding: 24px 18px 32px 24px;
+  background: transparent;
 }
 </style>

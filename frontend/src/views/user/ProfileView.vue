@@ -102,6 +102,11 @@ async function doUpload(file: File) {
 
 <template>
   <div class="profile" v-loading="loading">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Profile</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">个人中心</h1>
+      <p class="hero-subtitle mt-2">管理昵称、密码与头像。</p>
+    </section>
     <el-card class="card">
       <template #header><span>账号信息</span></template>
       <div v-if="me" class="info">

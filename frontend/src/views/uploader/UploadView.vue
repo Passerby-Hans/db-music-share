@@ -138,6 +138,11 @@ async function onSubmit() {
 
 <template>
   <div class="upload">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Creator Studio</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">上传歌曲</h1>
+      <p class="hero-subtitle mt-2">选择音频与封面，归属专辑三选一，提交后进入审核。</p>
+    </section>
     <el-card>
       <template #header><span>上传歌曲</span></template>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">

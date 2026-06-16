@@ -42,8 +42,13 @@ function goDetail(a: AlbumVO) {
 </script>
 
 <template>
-  <div class="albums">
-    <div class="toolbar">
+  <div class="albums app-page">
+    <section class="page-hero p-7 mb-6">
+      <span class="hero-kicker">Albums</span>
+      <h1 class="hero-title mt-4">专辑广场</h1>
+      <p class="hero-subtitle mt-3">浏览公开专辑，点封面查看完整曲目与介绍。</p>
+    </section>
+    <div class="toolbar toolbar-card p-4">
       <el-input
         v-model="keyword" placeholder="搜索专辑名" clearable class="search"
         @keyup.enter="onSearch" @clear="onSearch"
@@ -52,12 +57,12 @@ function goDetail(a: AlbumVO) {
       </el-input>
     </div>
 
-    <div v-loading="loading" class="content">
+    <div v-loading="loading" class="content mt-6">
       <el-empty v-if="!loading && albums.length === 0" description="暂无专辑" />
       <div v-else class="grid">
-        <el-card
-          v-for="a in albums" :key="a.aid" class="album-card" shadow="hover"
-          body-style="padding:0" @click="goDetail(a)"
+        <article
+          v-for="a in albums" :key="a.aid" class="album-card music-card"
+          @click="goDetail(a)"
         >
           <el-image :src="a.cover ?? undefined" fit="cover" class="cover">
             <template #error><div class="cover-ph">💿</div></template>
@@ -66,7 +71,7 @@ function goDetail(a: AlbumVO) {
             <div class="name text-ellipsis">{{ a.albumName }}</div>
             <div class="intro text-ellipsis">{{ a.introduction ?? '—' }}</div>
           </div>
-        </el-card>
+        </article>
       </div>
     </div>
 
@@ -81,13 +86,6 @@ function goDetail(a: AlbumVO) {
 </template>
 
 <style scoped>
-.albums {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.toolbar {
-  margin-bottom: 20px;
-}
 .search {
   max-width: 360px;
 }
@@ -96,15 +94,11 @@ function goDetail(a: AlbumVO) {
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 18px;
 }
 .album-card {
   cursor: pointer;
-  transition: transform 0.15s;
-}
-.album-card:hover {
-  transform: translateY(-3px);
 }
 .cover {
   width: 100%;
@@ -118,18 +112,20 @@ function goDetail(a: AlbumVO) {
   align-items: center;
   justify-content: center;
   font-size: 40px;
-  background: var(--el-fill-color-light);
+  color: #4f46e5;
+  background: linear-gradient(135deg, #dbeafe, #ede9fe);
 }
 .card-body {
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 .name {
-  font-weight: 600;
+  color: #111827;
+  font-weight: 800;
   font-size: 14px;
 }
 .intro {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: #6b7280;
   margin-top: 4px;
 }
 .text-ellipsis {
@@ -140,6 +136,6 @@ function goDetail(a: AlbumVO) {
 .pager {
   display: flex;
   justify-content: center;
-  margin-top: 24px;
+  margin-top: 26px;
 }
 </style>

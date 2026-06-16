@@ -99,7 +99,12 @@ async function onDelete(a: AlbumVO) {
 </script>
 
 <template>
-  <div class="my-albums">
+  <div class="my-albums app-page-wide">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Creator Studio</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">我的专辑</h1>
+      <p class="hero-subtitle mt-2">新建、编辑或删除专辑；缺省专辑由系统托管，不可改删。</p>
+    </section>
     <el-card>
       <template #header>
         <div class="card-head">
@@ -170,8 +175,6 @@ async function onDelete(a: AlbumVO) {
 
 <style scoped>
 .my-albums {
-  max-width: 1000px;
-  margin: 0 auto;
 }
 .card-head {
   display: flex;

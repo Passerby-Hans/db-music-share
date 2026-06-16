@@ -48,7 +48,12 @@ function playAll() {
 </script>
 
 <template>
-  <div class="album-detail" v-loading="loading">
+  <div class="album-detail app-page" v-loading="loading">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Album</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">{{ album?.albumName ?? '专辑详情' }}</h1>
+      <p class="hero-subtitle mt-2">查看专辑信息与其下完整曲目。</p>
+    </section>
     <el-card v-if="album" class="head-card">
       <div class="head">
         <el-image :src="album.cover ?? undefined" fit="cover" class="cover">

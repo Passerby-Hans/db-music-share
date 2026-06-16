@@ -100,7 +100,12 @@ async function onDelete(p: PlaylistVO) {
 </script>
 
 <template>
-  <div class="playlists">
+  <div class="playlists app-page">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Playlists</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">我的歌单</h1>
+      <p class="hero-subtitle mt-2">创建和管理你的私人歌单，可设公开或私密。</p>
+    </section>
     <el-card>
       <template #header>
         <div class="head">
@@ -163,8 +168,6 @@ async function onDelete(p: PlaylistVO) {
 
 <style scoped>
 .playlists {
-  max-width: 1000px;
-  margin: 0 auto;
 }
 .head {
   display: flex;

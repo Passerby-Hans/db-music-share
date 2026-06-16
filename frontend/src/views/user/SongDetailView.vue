@@ -296,7 +296,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="detail">
+  <div class="detail app-page">
+    <section class="page-hero p-6 mb-6">
+      <span class="hero-kicker">Now Playing</span>
+      <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">{{ song?.title ?? '歌曲详情' }}</h1>
+      <p class="hero-subtitle mt-2">查看歌词、评分与评论，支持收藏与加入歌单。</p>
+    </section>
     <!-- 歌曲信息 + 评分 -->
     <el-card v-loading="loadingSong" class="head-card">
       <div v-if="song" class="head">
@@ -491,8 +496,6 @@ onMounted(() => {
 
 <style scoped>
 .detail {
-  max-width: 820px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
