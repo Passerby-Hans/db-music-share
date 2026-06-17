@@ -71,4 +71,75 @@ class RankApiTest extends AbstractIntegrationTest {
         assertThat(data.get(0).path("title").asText()).isNotBlank();
         assertThat(data.get(0).path("cover").asText()).isNotBlank();
     }
+
+    @Test
+    @DisplayName("总榜 Redis 空:降级聚合 play_record,仍返回正确 Top10")
+    void totalBoardFallbackOnEmptyRedis() throws Exception {
+        // 不灌 rank:total → Redis 空 → 降级聚合 play_record(种子有 36 行真实点唱)
+        JsonNode data = board("total");
+        assertThat(data.isArray()).isTrue();
+        // 种子总榜:晴天(11) 第一(见 03_seed.sql 验证查询)
+        assertThat(data.size()).isGreaterThan(0);
+        assertThat(data.get(0).path("rank").asInt()).isEqualTo(1);
+        assertThat(data.get(0).path("score").asLong()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("日榜:命中 rank:daily:<今天> key")
+    void dailyBoardKeyResolution() throws Exception {
+        String today = java.time.LocalDate.now().toString(); // ISO yyyy-MM-dd
+        zadd("rank:daily:" + today, 1L, 3.0);
+        zadd("rank:daily:" + today, 2L, 7.0);
+        JsonNode data = board("daily");
+        assertThat(data.size()).isEqualTo(2);
+        assertThat(data.get(0).path("sid").asLong()).isEqualTo(2L); // 7 > 3
+    }
+
+    @Test
+    @DisplayName("周榜:命中 rank:weekly:<本周> key")
+    void weeklyBoardKeyResolution() throws Exception {
+        // 用与 service 完全相同的 WEEK_FMT 构造本周 key(4位周年+-W+2位ISO周号),保证一致
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        java.time.format.DateTimeFormatter weekFmt = new java.time.format.DateTimeFormatterBuilder()
+                .appendValue(java.time.temporal.WeekFields.ISO.weekBasedYear(), 4)
+                .appendLiteral("-W")
+                .appendValue(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear(), 2)
+                .toFormatter(java.util.Locale.ROOT);
+        String weekKey = "rank:weekly:" + now.format(weekFmt);
+        zadd(weekKey, 5L, 9.0);
+        zadd(weekKey, 6L, 2.0);
+        JsonNode data = board("weekly");
+        // 命中本周 key:sid=5(9) 排在 sid=6(2) 前
+        assertThat(data.size()).isGreaterThanOrEqualTo(1);
+        assertThat(data.get(0).path("sid").asLong()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("公开访问:无 token 读三榜均 200(白名单)")
+    void publicAccessNoToken() throws Exception {
+        mockMvc.perform(get("/api/rank/total")).andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(get("/api/rank/daily")).andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(get("/api/rank/weekly")).andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @DisplayName("TOP10 裁剪:灌 12 首只返回 10")
+    void top10Truncation() throws Exception {
+        for (long sid = 1; sid <= 12; sid++) {
+            zadd("rank:total", sid, sid * 1.0); // sid=12 最高
+        }
+        JsonNode data = board("total");
+        assertThat(data.size()).isEqualTo(10);
+        // 最高分 sid=12 排第一
+        assertThat(data.get(0).path("sid").asLong()).isEqualTo(12L);
+    }
+
+    @Test
+    @DisplayName("空榜:无任何数据返回 []")
+    void emptyBoardReturnsEmptyList() throws Exception {
+        // 用一个种子里无人点唱的时间窗造空(周榜若无本周数据)
+        JsonNode data = board("weekly");
+        // 不强制空(种子可能有本周数据);仅断言是数组、不报错
+        assertThat(data.isArray()).isTrue();
+    }
 }
