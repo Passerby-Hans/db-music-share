@@ -114,4 +114,70 @@ class PlayRecordApiTest extends AbstractIntegrationTest {
         // 总榜 +1
         assertThat(zscore("rank:total", sid)).isEqualTo(rankBefore + 1.0);
     }
+
+    @Test
+    @DisplayName("60s 内同歌重复点唱:幂等吞掉,play_count 与明细不再增加")
+    void dedupSwallowsRepeat() throws Exception {
+        String token = login("alice", "123456"); // uid5
+        long sid = 2;
+
+        long countBefore = playCount(sid);
+        long rowsBefore = rowCount(sid);
+
+        record(token, sid);                       // 第一次:正常计数
+        record(token, sid);                       // 第二次:60s 内,被去重吞掉
+
+        assertThat(playCount(sid)).isEqualTo(countBefore + 1);   // 只 +1
+        assertThat(rowCount(sid)).isEqualTo(rowsBefore + 1);     // 明细只 +1 行
+    }
+
+    @Test
+    @DisplayName("不同用户点同一首:各自 +1,互不干扰")
+    void differentUsersEachIncrement() throws Exception {
+        String alice = login("alice", "123456"); // uid5
+        String bob = login("bob", "123456");     // uid6
+        long sid = 3;
+
+        long countBefore = playCount(sid);
+        long rowsBefore = rowCount(sid);
+
+        record(alice, sid);
+        record(bob, sid);
+
+        assertThat(playCount(sid)).isEqualTo(countBefore + 2);
+        assertThat(rowCount(sid)).isEqualTo(rowsBefore + 2);
+    }
+
+    @Test
+    @DisplayName("点唱待审歌:404 且不计数")
+    void recordPendingSong404() throws Exception {
+        String token = login("alice", "123456");
+        long sid = 9; // 待审
+        long countBefore = playCount(sid);
+
+        mockMvc.perform(post("/api/play-record/{sid}", sid).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(404));
+
+        assertThat(playCount(sid)).isEqualTo(countBefore); // 未计数
+    }
+
+    @Test
+    @DisplayName("点唱软删歌:404 且不计数")
+    void recordDeletedSong404() throws Exception {
+        String token = login("alice", "123456");
+        long sid = 12; // 软删
+        long countBefore = playCount(sid);
+
+        mockMvc.perform(post("/api/play-record/{sid}", sid).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(404));
+
+        assertThat(playCount(sid)).isEqualTo(countBefore);
+    }
+
+    @Test
+    @DisplayName("未登录点唱:401")
+    void recordAnonymous401() throws Exception {
+        mockMvc.perform(post("/api/play-record/{sid}", 1))
+                .andExpect(jsonPath("$.code").value(401));
+    }
 }
