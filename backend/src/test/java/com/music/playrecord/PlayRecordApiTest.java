@@ -180,4 +180,40 @@ class PlayRecordApiTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/play-record/{sid}", 1))
                 .andExpect(jsonPath("$.code").value(401));
     }
+
+    @Test
+    @DisplayName("点唱后三榜(总/日/周)均 +1")
+    void rankThreeBoardsUpdated() throws Exception {
+        String token = login("alice", "123456");
+        long sid = 4;
+
+        double totalBefore = zscore("rank:total", sid);
+        String dayKey = "rank:daily:" + LocalDate.now(); // ISO yyyy-MM-dd
+
+        record(token, sid);
+
+        // 总榜 +1
+        assertThat(zscore("rank:total", sid)).isEqualTo(totalBefore + 1.0);
+        // 日榜 +1(LocalDate.now().toString() 默认 ISO 格式,与 service DAY_FMT 一致)
+        assertThat(zscore(dayKey, sid)).isEqualTo(1.0);
+        // 周榜:周号格式用 keys 扫描定位本周 key,断言该 sid score = 1
+        Set<String> weekKeys = redis.keys("rank:weekly:*");
+        assertThat(weekKeys).isNotEmpty();
+        String weekKey = weekKeys.iterator().next();
+        assertThat(zscore(weekKey, sid)).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("play_count 恒等于 play_record 真实行数(强一致)")
+    void playCountEqualsRowCount() throws Exception {
+        String alice = login("alice", "123456");
+        String bob = login("bob", "123456");
+        long sid = 5;
+
+        record(alice, sid);
+        record(bob, sid);
+
+        // play_count(冗余字段,同步自增)必须等于明细真实行数
+        assertThat(playCount(sid)).isEqualTo(rowCount(sid));
+    }
 }
