@@ -147,20 +147,29 @@ class RankApiTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("对账重建:破坏 rank:total 后 rebuild,Redis 与 play_record 聚合一致")
+    @DisplayName("对账重建:破坏 rank:total 后 rebuild,Redis 与 play_record 聚合一致(DEL 清孤儿)")
     void rebuildFixesDrift() throws Exception {
-        // 先灌一个错误 score 制造漂移
+        // 灌漂移:sid=1 错误高分 + sid=9999 孤儿(种子无此 sid,ZADD 覆盖不到,只能靠 DEL 清除)
         zadd("rank:total", 1L, 999.0);
-        // 对账重建总榜(从 play_record 全量聚合覆盖写回)
+        zadd("rank:total", 9999L, 500.0);
         rankService.rebuild(com.music.rank.BoardType.TOTAL);
 
-        // 读总榜:不再是 999,而是 play_record 真实聚合
         JsonNode data = board("total");
-        // sid=1 的 score 应为 play_record 中 sid=1 的真实行数(种子已知),而非 999
+        // sid=1 被真实聚合覆盖(<999)
+        boolean sid1Seen = false;
+        boolean orphanSeen = false;
         for (JsonNode n : data) {
-            if (n.path("sid").asLong() == 1L) {
+            long sid = n.path("sid").asLong();
+            if (sid == 1L) {
                 assertThat(n.path("score").asLong()).isLessThan(999L);
+                sid1Seen = true;
+            }
+            if (sid == 9999L) {
+                orphanSeen = true; // 不应出现
             }
         }
+        // sid=1 应在榜(种子有点唱);sid=9999 孤儿应被 DEL 清除
+        assertThat(sid1Seen).isTrue();
+        assertThat(orphanSeen).isFalse();
     }
 }

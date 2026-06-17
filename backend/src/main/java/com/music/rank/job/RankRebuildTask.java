@@ -44,6 +44,10 @@ public class RankRebuildTask {
 
     /**
      * 应用启动完成后重建一次(兜底 Redis 重启丢失)。
+     *
+     * <p><b>同步执行</b>:在 ApplicationReadyEvent 线程内直接调 rebuildAll,
+     * 课设数据量(play_record 数十~数百行)重建耗时可忽略,可接受。
+     * 数据量大时考虑加 {@code @Async} 或挪到独立线程池,避免拖慢应用就绪后的首批请求。</p>
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {

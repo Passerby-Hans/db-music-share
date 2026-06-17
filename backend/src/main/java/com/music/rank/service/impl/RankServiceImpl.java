@@ -101,20 +101,22 @@ public class RankServiceImpl implements RankService {
         return buildItems(sidScores);
     }
 
+    /**
+     * 对账重建某榜单:从 play_record 全量聚合(无 LIMIT)覆盖写回 Redis ZSET。
+     *
+     * <p>覆盖方式为 DEL 旧 key + ZADD 全量重建——<b>非原子</b>:对账窗口内点唱的
+     * ZINCRBY 可能落在 DEL 后/ZADD 前的空 key 上、随后被 ZADD 覆盖丢失。这是后台
+     * 任务的瞬时空窗,设计文档 §11 声明可容忍(读榜有降级聚合兜底、次日对账再纠正)。</p>
+     *
+     * @param board 榜单类型(TOTAL 全量/DAILY 当天/WEEKLY 本周)
+     */
     @Override
     public void rebuild(BoardType board) {
-        // 从 play_record 全量聚合(不加 LIMIT,重建完整 ZSET)
-        OffsetDateTime start = windowStart(board);
-        QueryWrapper<PlayRecord> w = new QueryWrapper<>();
-        w.select("sid", "COUNT(*) AS cnt");
-        if (start != null) {
-            w.ge("play_time", start);
-        }
-        w.groupBy("sid");
-        List<Map<String, Object>> rows = playRecordMapper.selectMaps(w);
+        // 全量聚合(无 LIMIT):重建完整 ZSET;limit<=0 表示不 ORDER BY/LIMIT
+        List<Map<String, Object>> rows = playRecordMapper.selectMaps(buildAggregateQuery(board, 0));
 
         String key = resolveKey(board);
-        // 覆盖写回:DEL 旧值 → ZADD 全量重建
+        // 覆盖写回:DEL 旧值 → ZADD 全量重建。非原子(见方法注释):对账窗口内点唱 ZINCRBY 可能被覆盖,可容忍。
         redis.delete(key);
         if (!rows.isEmpty()) {
             Set<ZSetOperations.TypedTuple<String>> tuples = new HashSet<>();
@@ -185,14 +187,8 @@ public class RankServiceImpl implements RankService {
      * @param limit 取前 N(读榜=10;对账传大数或单独方法,见 Task 4)
      */
     private List<Map.Entry<Long, Long>> aggregate(BoardType board, int limit) {
-        OffsetDateTime start = windowStart(board);
-        QueryWrapper<PlayRecord> w = new QueryWrapper<>();
-        w.select("sid", "COUNT(*) AS cnt");
-        if (start != null) {
-            w.ge("play_time", start);
-        }
-        w.groupBy("sid").orderByDesc("cnt").last("LIMIT " + limit);
-        List<Map<String, Object>> rows = playRecordMapper.selectMaps(w);
+        // TopN 聚合(limit>0 带 ORDER BY cnt DESC + LIMIT),公共查询构建见 buildAggregateQuery
+        List<Map<String, Object>> rows = playRecordMapper.selectMaps(buildAggregateQuery(board, limit));
         List<Map.Entry<Long, Long>> result = new ArrayList<>(rows.size());
         for (Map<String, Object> row : rows) {
             Object sidObj = row.get("sid");
@@ -203,6 +199,28 @@ public class RankServiceImpl implements RankService {
             result.add(Map.entry(((Number) sidObj).longValue(), ((Number) cntObj).longValue()));
         }
         return result;
+    }
+
+    /**
+     * 构建 play_record 时间窗聚合查询(sid → cnt)。limit<=0 表示全量不裁剪(对账重建用),
+     * limit>0 表示取 TopN(读榜降级用)。别名 sid/cnt 全小写,避开 PG 折叠坑。
+     *
+     * @param board 榜单(决定时间窗)
+     * @param limit 取前 N;<=0 则不 ORDER BY/LIMIT(全量)
+     * @return 已配好的 QueryWrapper(调用方自行 selectMaps)
+     */
+    private QueryWrapper<PlayRecord> buildAggregateQuery(BoardType board, int limit) {
+        OffsetDateTime start = windowStart(board);
+        QueryWrapper<PlayRecord> w = new QueryWrapper<>();
+        w.select("sid", "COUNT(*) AS cnt");
+        if (start != null) {
+            w.ge("play_time", start);
+        }
+        w.groupBy("sid");
+        if (limit > 0) {
+            w.orderByDesc("cnt").last("LIMIT " + limit);
+        }
+        return w;
     }
 
     /**
