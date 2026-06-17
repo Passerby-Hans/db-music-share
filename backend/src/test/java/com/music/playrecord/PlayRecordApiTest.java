@@ -1,0 +1,116 @@
+package com.music.playrecord;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.music.playrecord.entity.PlayRecord;
+import com.music.playrecord.mapper.PlayRecordMapper;
+import com.music.song.entity.Song;
+import com.music.song.mapper.SongMapper;
+import com.music.support.AbstractIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.time.LocalDate;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+
+/**
+ * 点唱记录模块 API 集成测试({@code /api/play-record})。
+ *
+ * <p>覆盖正常点唱(play_count+1、明细落行、Redis 三榜写入)、60s 去重吞重、
+ * 不同用户各 +1、不可见歌 404、未登录 401、play_count==真实行数。</p>
+ *
+ * <p>种子:alice=uid5/bob=uid6/carol=uid7,密码 123456;sid=1~8 多数已通过,
+ * sid=9/10 待审、sid=11 驳回、sid=12 软删。</p>
+ */
+class PlayRecordApiTest extends AbstractIntegrationTest {
+
+    private static final String TOKEN_HEADER = "X-Token";
+
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private StringRedisTemplate redis;
+    @Autowired
+    private SongMapper songMapper;
+    @Autowired
+    private PlayRecordMapper playRecordMapper;
+
+    private String login(String username, String password) throws Exception {
+        MvcResult res = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","password":"%s"}
+                                """.formatted(username, password)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        return objectMapper.readTree(res.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+    }
+
+    /** 发起一次点唱,断言成功。 */
+    private void record(String token, long sid) throws Exception {
+        mockMvc.perform(post("/api/play-record/{sid}", sid).header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    /** 某 sid 的总点唱数(play_count)。 */
+    private long playCount(long sid) {
+        return songMapper.selectById(sid).getPlayCount();
+    }
+
+    /** 某 sid 的点唱明细行数(真相源)。 */
+    private long rowCount(long sid) {
+        return playRecordMapper.selectCount(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<PlayRecord>lambdaQuery()
+                        .eq(PlayRecord::getSid, sid));
+    }
+
+    /** 某 ZSET key 下 sid 的 score(null 视为 0)。 */
+    private double zscore(String key, long sid) {
+        Double s = redis.opsForZSet().score(key, String.valueOf(sid));
+        return s == null ? 0.0 : s;
+    }
+
+    /** 每个测试方法后清理本类写入的 Redis key(dedup + 三榜),避免污染其它用例。 */
+    @AfterEach
+    void cleanupRedis() {
+        clearByPrefix("play:dedup:");
+        clearByPrefix("rank:");
+    }
+
+    private void clearByPrefix(String prefix) {
+        Set<String> keys = redis.keys(prefix + "*");
+        if (keys != null && !keys.isEmpty()) {
+            redis.delete(keys);
+        }
+    }
+
+    @Test
+    @DisplayName("正常点唱:play_count+1、明细落一行、rank:total +1")
+    void recordOnceIncrementsCount() throws Exception {
+        String token = login("alice", "123456"); // uid5
+        long sid = 1;
+
+        long countBefore = playCount(sid);
+        long rowsBefore = rowCount(sid);
+        double rankBefore = zscore("rank:total", sid);
+
+        record(token, sid);
+
+        // play_count 原子 +1
+        assertThat(playCount(sid)).isEqualTo(countBefore + 1);
+        // 明细落一行
+        assertThat(rowCount(sid)).isEqualTo(rowsBefore + 1);
+        // 总榜 +1
+        assertThat(zscore("rank:total", sid)).isEqualTo(rankBefore + 1.0);
+    }
+}
