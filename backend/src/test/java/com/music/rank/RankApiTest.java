@@ -78,7 +78,7 @@ class RankApiTest extends AbstractIntegrationTest {
         // 不灌 rank:total → Redis 空 → 降级聚合 play_record(种子有 36 行真实点唱)
         JsonNode data = board("total");
         assertThat(data.isArray()).isTrue();
-        // 种子总榜:晴天(11) 第一(见 03_seed.sql 验证查询)
+        // 种子总榜:晴天(sid=2) 以 11 次播放居首(见 03_seed.sql 验证查询)
         assertThat(data.size()).isGreaterThan(0);
         assertThat(data.get(0).path("rank").asInt()).isEqualTo(1);
         assertThat(data.get(0).path("score").asLong()).isGreaterThan(0);
@@ -109,9 +109,10 @@ class RankApiTest extends AbstractIntegrationTest {
         zadd(weekKey, 5L, 9.0);
         zadd(weekKey, 6L, 2.0);
         JsonNode data = board("weekly");
-        // 命中本周 key:sid=5(9) 排在 sid=6(2) 前
-        assertThat(data.size()).isGreaterThanOrEqualTo(1);
-        assertThat(data.get(0).path("sid").asLong()).isEqualTo(5L);
+        // 命中本周 key:sid=5(9) 排在 sid=6(2) 前;Redis 非空走 Redis 分支,返回 2 条
+        assertThat(data.size()).isEqualTo(2);
+        assertThat(data.get(0).path("sid").asLong()).isEqualTo(5L);  // 9 > 2
+        assertThat(data.get(1).path("sid").asLong()).isEqualTo(6L);
     }
 
     @Test
@@ -135,11 +136,11 @@ class RankApiTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("空榜:无任何数据返回 []")
+    @DisplayName("周榜:Redis 空→降级聚合,不报错返回数组")
     void emptyBoardReturnsEmptyList() throws Exception {
         // 用一个种子里无人点唱的时间窗造空(周榜若无本周数据)
         JsonNode data = board("weekly");
-        // 不强制空(种子可能有本周数据);仅断言是数组、不报错
+        // 种子本周有点唱数据,降级聚合会返回非空;此用例验证 weekly 读路径不报错、返回数组(非真"空榜")
         assertThat(data.isArray()).isTrue();
     }
 }
