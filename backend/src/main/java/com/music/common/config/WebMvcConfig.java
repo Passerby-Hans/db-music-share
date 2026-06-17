@@ -40,6 +40,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/register",
                         "/api/auth/login",
                         "/api/ping",
+                        "/api/rank/**",
                         "/actuator/**"
                 );
     }
