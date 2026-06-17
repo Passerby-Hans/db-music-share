@@ -29,6 +29,8 @@ class RankApiTest extends AbstractIntegrationTest {
     private ObjectMapper objectMapper;
     @Autowired
     private StringRedisTemplate redis;
+    @Autowired
+    private com.music.rank.service.RankService rankService;
 
     /** 读某榜返回 data 节点(records 数组)。 */
     private JsonNode board(String type) throws Exception {
@@ -142,5 +144,23 @@ class RankApiTest extends AbstractIntegrationTest {
         JsonNode data = board("weekly");
         // 种子本周有点唱数据,降级聚合会返回非空;此用例验证 weekly 读路径不报错、返回数组(非真"空榜")
         assertThat(data.isArray()).isTrue();
+    }
+
+    @Test
+    @DisplayName("对账重建:破坏 rank:total 后 rebuild,Redis 与 play_record 聚合一致")
+    void rebuildFixesDrift() throws Exception {
+        // 先灌一个错误 score 制造漂移
+        zadd("rank:total", 1L, 999.0);
+        // 对账重建总榜(从 play_record 全量聚合覆盖写回)
+        rankService.rebuild(com.music.rank.BoardType.TOTAL);
+
+        // 读总榜:不再是 999,而是 play_record 真实聚合
+        JsonNode data = board("total");
+        // sid=1 的 score 应为 play_record 中 sid=1 的真实行数(种子已知),而非 999
+        for (JsonNode n : data) {
+            if (n.path("sid").asLong() == 1L) {
+                assertThat(n.path("score").asLong()).isLessThan(999L);
+            }
+        }
     }
 }

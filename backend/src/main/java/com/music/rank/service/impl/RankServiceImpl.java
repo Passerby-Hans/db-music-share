@@ -13,6 +13,7 @@ import com.music.user.entity.User;
 import com.music.user.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -101,8 +103,41 @@ public class RankServiceImpl implements RankService {
 
     @Override
     public void rebuild(BoardType board) {
-        // Task 4 实现
-        throw new UnsupportedOperationException("rebuild 在 Task 4 实现");
+        // 从 play_record 全量聚合(不加 LIMIT,重建完整 ZSET)
+        OffsetDateTime start = windowStart(board);
+        QueryWrapper<PlayRecord> w = new QueryWrapper<>();
+        w.select("sid", "COUNT(*) AS cnt");
+        if (start != null) {
+            w.ge("play_time", start);
+        }
+        w.groupBy("sid");
+        List<Map<String, Object>> rows = playRecordMapper.selectMaps(w);
+
+        String key = resolveKey(board);
+        // 覆盖写回:DEL 旧值 → ZADD 全量重建
+        redis.delete(key);
+        if (!rows.isEmpty()) {
+            Set<ZSetOperations.TypedTuple<String>> tuples = new HashSet<>();
+            for (Map<String, Object> row : rows) {
+                Object sidObj = row.get("sid");
+                Object cntObj = row.get("cnt");
+                if (sidObj == null || cntObj == null) {
+                    continue;
+                }
+                tuples.add(new DefaultTypedTuple<>(
+                        String.valueOf(((Number) sidObj).longValue()),
+                        (double) ((Number) cntObj).longValue()));
+            }
+            if (!tuples.isEmpty()) {
+                redis.opsForZSet().add(key, tuples);
+            }
+        }
+        // 日/周榜补 TTL(与点唱写入口径一致;总榜无 TTL)
+        if (board == BoardType.DAILY) {
+            redis.expire(key, DAILY_TTL);
+        } else if (board == BoardType.WEEKLY) {
+            redis.expire(key, WEEKLY_TTL);
+        }
     }
 
     /**
