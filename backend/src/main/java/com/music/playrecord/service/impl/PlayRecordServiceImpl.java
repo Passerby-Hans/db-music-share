@@ -65,8 +65,6 @@ public class PlayRecordServiceImpl implements PlayRecordService {
     /** 日榜 key 日期格式 yyyy-MM-dd。 */
     private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     /** ISO 周号格式 yyyy-Www(两位周号补零)。 */
-    // 注:JDK 中格式器构造器类名为 DateTimeFormatterBuilder(无名为 Builder 的嵌套类),
-    // 故直接 import 该顶层类构造,而非计划初稿笔误的 DateTimeFormatter.Builder。
     private static final DateTimeFormatter WEEK_FMT = new DateTimeFormatterBuilder()
             .appendValue(WeekFields.ISO.weekBasedYear(), 4)
             .appendLiteral("-W")
@@ -106,8 +104,18 @@ public class PlayRecordServiceImpl implements PlayRecordService {
 
         // 2. 同 uid+sid 60s 去重:SETNX 既判断又占位(一次操作)
         String dedupKey = DEDUP_PREFIX + uid + ":" + sid;
-        Boolean fresh = redis.opsForValue().setIfAbsent(dedupKey, "1", DEDUP_WINDOW);
-        if (Boolean.FALSE.equals(fresh)) {
+        boolean fresh;
+        try {
+            // SETNX 既判断又占位:返回 true=新点唱,false=窗口内重复。
+            Boolean acquired = redis.opsForValue().setIfAbsent(dedupKey, "1", DEDUP_WINDOW);
+            fresh = !Boolean.FALSE.equals(acquired); // null/true 视为新点唱,false 视为重复
+        } catch (Exception e) {
+            // Redis 全挂时去重降级:视为新点唱正常计数(无去重),不阻断点唱——
+            // 核心契约在 DB。与 bumpRank 同口径(设计文档 §9「SETNX 一律 try-catch 不阻断」)。
+            log.warn("Redis 去重失败,降级为不去重点唱: uid={}, sid={}, err={}", uid, sid, e.getMessage());
+            fresh = true;
+        }
+        if (!fresh) {
             // 窗口内重复点唱,幂等返回,不计数、不记明细、不 ZINCRBY
             return;
         }

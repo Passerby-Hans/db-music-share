@@ -1,6 +1,7 @@
 package com.music.playrecord.controller;
 
 import com.music.common.context.UserContext;
+import com.music.common.exception.BizException;
 import com.music.common.result.Result;
 import com.music.playrecord.service.PlayRecordService;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,6 +33,8 @@ public class PlayRecordController {
      *
      * @param sid 被点唱的歌曲 sid
      * @return 成功响应
+     * @throws BizException 歌曲不存在或不可见(未审/驳回/软删)时抛出,
+     *         经全局异常处理映射为 404(见 {@link com.music.common.exception.GlobalExceptionHandler})
      */
     @PostMapping("/{sid}")
     public Result<Void> record(@PathVariable Long sid) {

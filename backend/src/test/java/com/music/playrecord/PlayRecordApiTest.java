@@ -2,6 +2,7 @@ package com.music.playrecord;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.music.playrecord.entity.PlayRecord;
 import com.music.playrecord.mapper.PlayRecordMapper;
 import com.music.song.entity.Song;
@@ -70,7 +71,7 @@ class PlayRecordApiTest extends AbstractIntegrationTest {
     /** 某 sid 的点唱明细行数(真相源)。 */
     private long rowCount(long sid) {
         return playRecordMapper.selectCount(
-                com.baomidou.mybatisplus.core.toolkit.Wrappers.<PlayRecord>lambdaQuery()
+                Wrappers.<PlayRecord>lambdaQuery()
                         .eq(PlayRecord::getSid, sid));
     }
 
