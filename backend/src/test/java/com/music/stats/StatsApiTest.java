@@ -32,6 +32,8 @@ class StatsApiTest extends AbstractIntegrationTest {
     private ObjectMapper objectMapper;
     @Autowired
     private StringRedisTemplate redis;
+    @Autowired
+    private com.music.stats.service.StatsService statsService;
 
     private String login(String username, String password) throws Exception {
         MvcResult res = mockMvc.perform(post("/api/auth/login")
@@ -144,5 +146,23 @@ class StatsApiTest extends AbstractIntegrationTest {
         assertThat(data.isArray()).isTrue();
         assertThat(data.size()).isGreaterThan(0); // 仍有数据(降级聚合)
         assertThat(redis.opsForValue().get("stats:top-users")).isNotNull(); // 重新写缓存
+    }
+
+    @Test
+    @DisplayName("定时刷新:refreshAll 覆盖写两缓存")
+    void refreshAllRewritesCache() throws Exception {
+        // 先污染缓存(写一个错误值,uid=999 种子不存在)
+        redis.opsForValue().set("stats:top-users", "[{\"rank\":1,\"uid\":999,\"playCount\":999}]", java.time.Duration.ofHours(1));
+        // 刷新
+        statsService.refreshAll();
+        // 读出来不再是 999(被真实聚合覆盖)
+        String json = mockMvc.perform(get("/api/admin/stats/top-users")
+                        .header(TOKEN_HEADER, login("admin", "123456")))
+                .andReturn().getResponse().getContentAsString();
+        boolean has999 = json.contains("\"uid\":999");
+        assertThat(has999).isFalse();
+        // 两缓存都被写
+        assertThat(redis.opsForValue().get("stats:top-users")).isNotNull();
+        assertThat(redis.opsForValue().get("stats:top-uploaders")).isNotNull();
     }
 }

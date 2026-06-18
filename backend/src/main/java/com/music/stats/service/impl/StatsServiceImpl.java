@@ -97,8 +97,17 @@ public class StatsServiceImpl implements StatsService {
 
     @Override
     public void refreshAll() {
-        // Task 4 实现
-        throw new UnsupportedOperationException("refreshAll 在 Task 4 实现");
+        // 逐个聚合 + 覆盖写缓存;单榜失败不影响另一个(对账任务容错)
+        try {
+            writeCache(KEY_TOP_USERS, aggregateTopUsers());
+        } catch (Exception e) {
+            log.error("刷新 stats:top-users 缓存失败", e);
+        }
+        try {
+            writeCache(KEY_TOP_UPLOADERS, aggregateTopUploaders());
+        } catch (Exception e) {
+            log.error("刷新 stats:top-uploaders 缓存失败", e);
+        }
     }
 
     /**
