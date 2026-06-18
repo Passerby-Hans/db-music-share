@@ -74,4 +74,66 @@ class StatsApiTest extends AbstractIntegrationTest {
         assertThat(data.get(0).path("avatar").asText()).isNotBlank();
         assertThat(data.get(0).path("playCount").asLong()).isGreaterThan(0);
     }
+
+    @Test
+    @DisplayName("上传者贡献 TOP10:返回倒序+回填+songCount/totalPlayCount")
+    void topUploadersAdmin() throws Exception {
+        String token = login("admin", "123456");
+        JsonNode data = stats(token, "top-uploaders");
+        assertThat(data.isArray()).isTrue();
+        assertThat(data.size()).isGreaterThan(0); // 种子有上传者
+        assertThat(data.get(0).path("rank").asInt()).isEqualTo(1);
+        assertThat(data.get(0).path("nickname").asText()).isNotBlank();
+        assertThat(data.get(0).path("songCount").asLong()).isGreaterThan(0);
+        assertThat(data.get(0).path("totalPlayCount").asLong()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("普通用户(role=0)读统计:403")
+    void statsForbiddenToNormalUser() throws Exception {
+        String token = login("alice", "123456"); // role=0
+        mockMvc.perform(get("/api/admin/stats/top-users").header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("上传者(role=1)读统计:403")
+    void statsForbiddenToUploader() throws Exception {
+        String token = login("uploader_jay", "123456"); // role=1
+        mockMvc.perform(get("/api/admin/stats/top-uploaders").header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("未登录读统计:401")
+    void statsAnonymousUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/admin/stats/top-users"))
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("缓存命中:首次读写缓存,第二次读命中(返回相同)")
+    void cacheHitOnSecondRead() throws Exception {
+        String token = login("admin", "123456");
+        // 首次读:聚合 + 写缓存 stats:top-users
+        JsonNode first = stats(token, "top-users");
+        assertThat(first.size()).isGreaterThan(0);
+        // 断言缓存已写入
+        assertThat(redis.opsForValue().get("stats:top-users")).isNotNull();
+        // 第二次读:命中缓存(返回同 first)
+        JsonNode second = stats(token, "top-users");
+        assertThat(second.toString()).isEqualTo(first.toString());
+    }
+
+    @Test
+    @DisplayName("缓存 miss 兜底:删缓存后读→重新聚合+写缓存")
+    void cacheMissFallback() throws Exception {
+        String token = login("admin", "123456");
+        stats(token, "top-users"); // 先填缓存
+        redis.delete("stats:top-users"); // 清缓存制造 miss
+        JsonNode data = stats(token, "top-users"); // 重新聚合
+        assertThat(data.isArray()).isTrue();
+        assertThat(data.size()).isGreaterThan(0); // 仍有数据(降级聚合)
+        assertThat(redis.opsForValue().get("stats:top-users")).isNotNull(); // 重新写缓存
+    }
 }
