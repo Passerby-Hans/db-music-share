@@ -58,9 +58,10 @@ public class AlbumController {
     @GetMapping("/public")
     public Result<PageVO<AlbumVO>> listPublic(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        return Result.success(albumService.listPublic(keyword, page, size));
+        return Result.success(albumService.listPublic(keyword, sort, page, size));
     }
 
     /**

@@ -28,14 +28,15 @@ public interface AlbumService {
     Long create(Long creatorUid, AlbumCreateDTO dto);
 
     /**
-     * 公开专辑列表（口径A：未删），支持按名模糊搜索 + 分页。
+     * 公开专辑列表（口径A：未删），支持按名模糊搜索 + 排序 + 分页。
      *
      * @param keyword 专辑名关键词，可空
+     * @param sort    排序:release_date(发行)/其它或空=默认 aid 创建序;desc 固定
      * @param page    页码（从 1 起）
      * @param size    每页条数
      * @return 分页专辑列表
      */
-    PageVO<AlbumVO> listPublic(String keyword, long page, long size);
+    PageVO<AlbumVO> listPublic(String keyword, String sort, long page, long size);
 
     /**
      * 公开专辑详情（口径A：未删）。

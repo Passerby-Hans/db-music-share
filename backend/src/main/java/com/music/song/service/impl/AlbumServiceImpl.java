@@ -76,14 +76,20 @@ public class AlbumServiceImpl implements AlbumService {
     }
 
     /**
-     * 公开专辑列表（未删）：可选按名模糊搜索，按 aid 倒序分页。
+     * 公开专辑列表（未删）：可选按名模糊搜索 + sort 排序 + 分页。
+     * sort:release_date(发行)/默认 aid 创建序;desc 固定;未知值走默认。
      */
     @Override
-    public PageVO<AlbumVO> listPublic(String keyword, long page, long size) {
+    public PageVO<AlbumVO> listPublic(String keyword, String sort, long page, long size) {
         var wrapper = Wrappers.<Album>lambdaQuery()
                 .eq(Album::getIsDeleted, false)
-                .like(keyword != null && !keyword.isBlank(), Album::getAlbumName, keyword)
-                .orderByDesc(Album::getAid);
+                .like(keyword != null && !keyword.isBlank(), Album::getAlbumName, keyword);
+        // 排序:sort=release_date 按发行日期 desc;未知/未传走默认 aid(创建序,兼容)
+        if ("release_date".equals(sort)) {
+            wrapper.orderByDesc(Album::getReleaseDate);
+        } else {
+            wrapper.orderByDesc(Album::getAid);
+        }
         IPage<Album> result = albumMapper.selectPage(new Page<>(page, size), wrapper);
         return toPageVO(result);
     }

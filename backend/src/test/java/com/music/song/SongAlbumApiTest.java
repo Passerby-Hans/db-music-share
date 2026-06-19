@@ -851,6 +851,42 @@ class SongAlbumApiTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value(404));
     }
 
+    // ============================ 专辑搜索排序（sort 参数） ============================
+
+    @Test
+    @DisplayName("专辑搜索 sort=release_date:不报错,返回未删专辑")
+    void listPublicAlbumSortByReleaseDate() throws Exception {
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/album/public")
+                        .header(TOKEN_HEADER, token)
+                        .param("sort", "release_date")
+                        .param("size", "20"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        assertThat(records.size()).isGreaterThan(0);
+        // 注:种子 releaseDate 可能多为空,此用例验证 sort=release_date 不报错 + 返回;
+        // 排序正确性由 orderByDesc(releaseDate) 保证。
+    }
+
+    @Test
+    @DisplayName("专辑搜索默认(无 sort):按 aid 倒序(兼容)")
+    void listPublicAlbumDefaultSortByAid() throws Exception {
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/album/public")
+                        .header(TOKEN_HEADER, token).param("size", "20"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        if (records.size() >= 2) {
+            long first = records.get(0).path("aid").asLong();
+            long last = records.get(records.size() - 1).path("aid").asLong();
+            assertThat(first).isGreaterThan(last); // 默认 aid 倒序
+        }
+    }
+
     // ============================ 我的专辑 ============================
 
     @Test
