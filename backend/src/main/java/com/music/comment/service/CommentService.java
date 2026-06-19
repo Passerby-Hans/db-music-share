@@ -77,6 +77,20 @@ public interface CommentService {
     PageVO<CommentVO> listMine(Long uid, long page, long size);
 
     /**
+     * 管理端评论全站列表(主评论 + 回复),支持内容筛选 + 分页,回填所属歌名。
+     *
+     * <p>面向管理后台的总览视图:不分歌曲、不限可见性,全站评论(含主评论与回复)
+     * 按 cid 倒序分页,每项回填所属歌曲标题 songTitle,便于管理员一眼定位评论归属。
+     * likedByMe 在管理端无意义,恒填 false。</p>
+     *
+     * @param keyword 评论内容关键词,可空(空则不做内容筛选)
+     * @param page    页码(从 1 起)
+     * @param size    每页条数
+     * @return 分页评论列表(含 sid + songTitle)
+     */
+    PageVO<CommentVO> listAllForAdmin(String keyword, long page, long size);
+
+    /**
      * 点赞一条评论（幂等）。
      *
      * <p>评论须存在，否则抛 404。若该用户已点赞过同一条评论，则不重复插入、

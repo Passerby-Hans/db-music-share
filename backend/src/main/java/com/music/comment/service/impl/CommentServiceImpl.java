@@ -255,6 +255,51 @@ public class CommentServiceImpl implements CommentService {
                         likeCountMap.getOrDefault(c.getCid(), 0L),
                         likedSet.contains(c.getCid()), userMap))
                 .toList();
+        // 回填所属歌名(我的评论可能跨多首歌,需一次性批量查歌名)
+        Map<Long, String> titleMap = loadSongTitles(records.stream().map(Comment::getSid).toList());
+        vos.forEach(vo -> vo.setSongTitle(titleMap.get(vo.getSid())));
+        return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    /**
+     * 管理端评论全站列表:内容筛选 + 按 cid 倒序分页,回填 replyCount/likeCount/用户/歌名。
+     *
+     * <p>面向管理后台总览:不限歌曲可见性、不限登录用户身份,全站评论(主评论与回复)
+     * 一并返回,按 cid 倒序(新在前)。复用 listMine 的批量回填套路(replyCount 仅对
+     * 主评论统计、likeCount 与用户信息全量统计、歌名批量查),规避 N+1。
+     * {@code likedByMe} 在管理端无意义(管理员不是评论互动方),恒填 false。</p>
+     *
+     * @param keyword 评论内容关键词,可空(空则不做内容筛选)
+     * @param page    页码(从 1 起)
+     * @param size    每页条数
+     * @return 分页评论列表(含 sid + songTitle)
+     */
+    @Override
+    public PageVO<CommentVO> listAllForAdmin(String keyword, long page, long size) {
+        var wrapper = Wrappers.<Comment>lambdaQuery()
+                .like(keyword != null && !keyword.isBlank(), Comment::getContent, keyword)
+                .orderByDesc(Comment::getCid);
+        IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
+        List<Comment> records = result.getRecords();
+
+        // 仅对其中的主评论(parentCid 为空)查回复数;回复项无下级无需计数
+        List<Long> parentCids = records.stream()
+                .filter(c -> c.getParentCid() == null)
+                .map(Comment::getCid)
+                .toList();
+        Map<Long, Long> replyCountMap = countRepliesByParent(parentCids);
+        // 点赞数对主评论与回复都适用,用全量 cids
+        List<Long> cids = records.stream().map(Comment::getCid).toList();
+        Map<Long, Long> likeCountMap = countLikesByComment(cids);
+        Map<Long, User> userMap = loadUsers(records.stream().map(Comment::getUid).toList());
+        Map<Long, String> titleMap = loadSongTitles(records.stream().map(Comment::getSid).toList());
+
+        List<CommentVO> vos = records.stream()
+                .map(c -> toCommentVO(c, replyCountMap.getOrDefault(c.getCid(), 0L),
+                        likeCountMap.getOrDefault(c.getCid(), 0L),
+                        false, userMap)) // likedByMe=false(管理端不关心互动态)
+                .toList();
+        vos.forEach(vo -> vo.setSongTitle(titleMap.get(vo.getSid())));
         return new PageVO<>(vos, result.getTotal(), result.getCurrent(), result.getSize());
     }
 
@@ -361,6 +406,25 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
+     * 按一批 sid 批量加载歌曲标题(sid→title),供评论列表回填所属歌名。
+     *
+     * <p>管理端评论列表/我的评论跨多首歌,需一次性批量查歌名,避免逐条 N+1。
+     * 注:歌曲软删(逻辑删,非物理删),{@code selectBatchIds} 仍能取到,
+     * 故对软删歌的评论仍能正确回填 title(管理员需要看到下架歌的残留评论归属)。</p>
+     *
+     * @param sids 歌曲 sid 列表(可含重复,会自动去重)
+     * @return sid → 歌曲标题 的映射;空列表返回空表
+     */
+    private Map<Long, String> loadSongTitles(List<Long> sids) {
+        if (sids == null || sids.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> distinct = sids.stream().distinct().toList();
+        return songMapper.selectBatchIds(distinct).stream()
+                .collect(Collectors.toMap(Song::getSid, Song::getTitle, (a, b) -> a));
+    }
+
+    /**
      * 评论实体转主评论 VO，回填回复数、点赞数、是否已赞与评论者昵称/头像。
      *
      * @param c          评论实体
@@ -374,6 +438,7 @@ public class CommentServiceImpl implements CommentService {
                                   boolean likedByMe, Map<Long, User> userMap) {
         CommentVO vo = new CommentVO();
         vo.setCid(c.getCid());
+        vo.setSid(c.getSid());
         vo.setUid(c.getUid());
         vo.setContent(c.getContent());
         vo.setLikeCount(likeCount);

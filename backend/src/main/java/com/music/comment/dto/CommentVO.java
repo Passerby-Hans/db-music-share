@@ -17,6 +17,12 @@ public class CommentVO {
     /** 评论 cid。 */
     private Long cid;
 
+    /** 所属歌曲 sid(管理端/我的评论列表标识所属歌)。 */
+    private Long sid;
+
+    /** 所属歌曲标题(回填,管理端/我的评论列表显示)。 */
+    private String songTitle;
+
     /** 评论者 uid。 */
     private Long uid;
 
@@ -53,6 +59,22 @@ public class CommentVO {
 
     public void setCid(Long cid) {
         this.cid = cid;
+    }
+
+    public Long getSid() {
+        return sid;
+    }
+
+    public void setSid(Long sid) {
+        this.sid = sid;
+    }
+
+    public String getSongTitle() {
+        return songTitle;
+    }
+
+    public void setSongTitle(String songTitle) {
+        this.songTitle = songTitle;
     }
 
     public Long getUid() {
