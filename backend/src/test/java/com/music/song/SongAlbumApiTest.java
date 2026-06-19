@@ -323,6 +323,73 @@ class SongAlbumApiTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value(404));
     }
 
+    // ============================ 搜索排序（sort 参数） ============================
+
+    @Test
+    @DisplayName("歌曲搜索 sort=play_count:按播放量倒序")
+    void listPublicSortByPlayCount() throws Exception {
+        // /api/song/public 需登录
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/song/public")
+                        .header(TOKEN_HEADER, token)
+                        .param("sort", "play_count")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        assertThat(records.size()).isGreaterThan(0);
+        // 倒序:首项 playCount >= 末项(SongVO 暴露 playCount)
+        long first = records.get(0).path("playCount").asLong();
+        long last = records.get(records.size() - 1).path("playCount").asLong();
+        assertThat(first).isGreaterThanOrEqualTo(last);
+    }
+
+    @Test
+    @DisplayName("歌曲搜索 sort=create_time:不报错,返回口径A歌曲")
+    void listPublicSortByCreateTime() throws Exception {
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/song/public")
+                        .header(TOKEN_HEADER, token)
+                        .param("sort", "create_time")
+                        .param("size", "20"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        assertThat(records.size()).isGreaterThan(0);
+        // 注:SongVO 不暴露 createTime,排序正确性由 orderByDesc(createTime) 保证;
+        // 此用例验证 sort=create_time 不报错 + 返回口径A歌曲(不验证排序值)。
+    }
+
+    @Test
+    @DisplayName("歌曲搜索默认(无 sort):按 sid 倒序(兼容)")
+    void listPublicDefaultSortBySid() throws Exception {
+        String token = login("alice", "123456");
+        MvcResult res = mockMvc.perform(get("/api/song/public")
+                        .header(TOKEN_HEADER, token).param("size", "20"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        if (records.size() >= 2) {
+            // 默认 sid 倒序:首项 sid > 末项 sid
+            long first = records.get(0).path("sid").asLong();
+            long last = records.get(records.size() - 1).path("sid").asLong();
+            assertThat(first).isGreaterThan(last);
+        }
+    }
+
+    @Test
+    @DisplayName("歌曲搜索未知 sort 值:走默认排序,不报错(宽松)")
+    void listPublicUnknownSortFallback() throws Exception {
+        String token = login("alice", "123456");
+        mockMvc.perform(get("/api/song/public")
+                        .header(TOKEN_HEADER, token).param("sort", "foo"))
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
     // ============================ 播放地址 ============================
 
     @Test

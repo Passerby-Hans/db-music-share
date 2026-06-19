@@ -113,15 +113,23 @@ public class SongServiceImpl implements SongService {
         return song.getSid();
     }
     /**
-     * 公开歌曲列表（口径A：已审核 + 未删），可选标题模糊搜索，按 sid 倒序分页。
+     * 公开歌曲列表（口径A：已审核 + 未删），可选标题模糊搜索 + sort 排序 + 分页。
+     * sort:play_count(热度)/create_time(最新)/默认 sid 发布序;desc 固定;未知值走默认。
      */
     @Override
-    public PageVO<SongVO> listPublic(String keyword, long page, long size) {
+    public PageVO<SongVO> listPublic(String keyword, String sort, long page, long size) {
         var wrapper = Wrappers.<Song>lambdaQuery()
                 .eq(Song::getAuditStatus, AUDIT_PASSED)
                 .eq(Song::getIsDeleted, false)
-                .like(keyword != null && !keyword.isBlank(), Song::getTitle, keyword)
-                .orderByDesc(Song::getSid);
+                .like(keyword != null && !keyword.isBlank(), Song::getTitle, keyword);
+        // 排序:sort 枚举 desc 固定;未知/未传走默认 sid(发布序,兼容现有行为)
+        if ("play_count".equals(sort)) {
+            wrapper.orderByDesc(Song::getPlayCount);
+        } else if ("create_time".equals(sort)) {
+            wrapper.orderByDesc(Song::getCreateTime);
+        } else {
+            wrapper.orderByDesc(Song::getSid);
+        }
         IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
         return toPageVO(result);
     }

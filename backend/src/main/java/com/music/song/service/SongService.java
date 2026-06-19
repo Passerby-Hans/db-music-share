@@ -28,14 +28,15 @@ public interface SongService {
     Long upload(Long uploaderUid, SongUploadDTO dto);
 
     /**
-     * 公开歌曲列表（口径A：已审核 + 未删），支持按标题模糊搜索 + 分页。
+     * 公开歌曲列表（口径A：已审核 + 未删），支持按标题模糊搜索 + 排序 + 分页。
      *
      * @param keyword 标题关键词，可空
+     * @param sort    排序:play_count(热度)/create_time(最新)/其它或空=默认 sid 发布序;desc 固定
      * @param page    页码（从 1 起）
      * @param size    每页条数
      * @return 分页歌曲列表
      */
-    PageVO<SongVO> listPublic(String keyword, long page, long size);
+    PageVO<SongVO> listPublic(String keyword, String sort, long page, long size);
 
     /**
      * 公开歌曲详情（口径A：已审核 + 未删）。

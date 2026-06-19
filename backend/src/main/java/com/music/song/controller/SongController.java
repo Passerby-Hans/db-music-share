@@ -60,9 +60,10 @@ public class SongController {
     @GetMapping("/public")
     public Result<PageVO<SongVO>> listPublic(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        return Result.success(songService.listPublic(keyword, page, size));
+        return Result.success(songService.listPublic(keyword, sort, page, size));
     }
 
     /**
