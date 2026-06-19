@@ -264,6 +264,23 @@ public class SongServiceImpl implements SongService {
     }
 
     /**
+     * 管理端歌曲全量列表:keyword 标题筛选 + auditStatus 审核态筛选 + 含软删(管理全面),
+     * 按 sid 倒序分页。区别 listPending(仅待审未删)/listPublic(口径A)。
+     */
+    @Override
+    public PageVO<SongVO> listAllForAdmin(String keyword, Integer auditStatus, long page, long size) {
+        var wrapper = Wrappers.<Song>lambdaQuery()
+                .like(keyword != null && !keyword.isBlank(), Song::getTitle, keyword);
+        if (auditStatus != null) {
+            wrapper.eq(Song::getAuditStatus, auditStatus);
+        }
+        wrapper.orderByDesc(Song::getSid);
+        // 注:含软删(管理端全面),不滤 is_deleted
+        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        return toPageVO(result);
+    }
+
+    /**
      * 审核歌曲（管理员用）：仅对「待审」歌曲操作，通过置 1、驳回置 2 并记录理由。
      * 已审核过的歌曲（通过/驳回）返回 409，避免误把已上线歌曲打回。
      */

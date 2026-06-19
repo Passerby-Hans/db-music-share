@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -292,5 +295,65 @@ class SongAuditApiTest extends AbstractIntegrationTest {
                                 {"pass":false,"remark":"   "}
                                 """))
                 .andExpect(jsonPath("$.code").value(400));
+    }
+
+    // ============================ 管理端歌曲全量列表 ============================
+
+    @Test
+    @DisplayName("管理端歌曲全量列表:含各审核态 + 软删歌,isDeleted 字段在")
+    void listAllForAdminContainsAll() throws Exception {
+        String token = login("admin", "123456");
+        MvcResult res = mockMvc.perform(get("/api/admin/song/all").header(TOKEN_HEADER, token).param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        assertThat(records.isArray()).isTrue();
+        Set<Long> sids = new HashSet<>();
+        boolean hasIsDeletedField = false;
+        for (JsonNode s : records) {
+            sids.add(s.path("sid").asLong());
+            if (s.has("isDeleted")) {
+                hasIsDeletedField = true;
+            }
+        }
+        assertThat(sids).contains(11L, 12L); // 驳回 + 软删都在(区别 listPending/listPublic)
+        assertThat(hasIsDeletedField).isTrue();
+    }
+
+    @Test
+    @DisplayName("管理端歌曲列表 keyword 筛选")
+    void listAllForAdminKeyword() throws Exception {
+        String token = login("admin", "123456");
+        MvcResult res = mockMvc.perform(get("/api/admin/song/all")
+                        .header(TOKEN_HEADER, token).param("keyword", "晴天").param("size", "50"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        for (JsonNode s : records) {
+            assertThat(s.path("title").asText()).contains("晴天");
+        }
+    }
+
+    @Test
+    @DisplayName("管理端歌曲列表 auditStatus 筛选(仅驳回)")
+    void listAllForAdminAuditStatus() throws Exception {
+        String token = login("admin", "123456");
+        MvcResult res = mockMvc.perform(get("/api/admin/song/all")
+                        .header(TOKEN_HEADER, token).param("auditStatus", "2").param("size", "50"))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+        JsonNode records = readJson(res).path("data").path("records");
+        for (JsonNode s : records) {
+            assertThat(s.path("auditStatus").asInt()).isEqualTo(2);
+        }
+    }
+
+    @Test
+    @DisplayName("管理端歌曲列表:非管理员 403")
+    void listAllForAdminForbidden() throws Exception {
+        String token = login("alice", "123456"); // role=0
+        mockMvc.perform(get("/api/admin/song/all").header(TOKEN_HEADER, token))
+                .andExpect(jsonPath("$.code").value(403));
     }
 }

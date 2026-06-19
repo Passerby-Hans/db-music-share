@@ -104,6 +104,17 @@ public interface SongService {
     PageVO<SongVO> listPending(long page, long size);
 
     /**
+     * 管理端歌曲全量列表(所有歌,含各审核态 + 软删),支持标题/审核态筛选 + 分页。
+     *
+     * @param keyword     标题关键词,可空
+     * @param auditStatus 审核态 0/1/2;空=全部
+     * @param page        页码(从 1 起)
+     * @param size        每页条数
+     * @return 分页歌曲列表(含 isDeleted 标记)
+     */
+    PageVO<SongVO> listAllForAdmin(String keyword, Integer auditStatus, long page, long size);
+
+    /**
      * 审核歌曲（管理员用）。仅允许对「待审」（auditStatus=0）歌曲操作：
      * 通过则置 auditStatus=1 并清空理由；驳回则置 auditStatus=2 并记录理由。
      *

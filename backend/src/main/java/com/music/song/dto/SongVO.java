@@ -38,6 +38,9 @@ public class SongVO {
     /** 驳回理由（口径B管理页用）。 */
     private String auditRemark;
 
+    /** 软删除标记(管理端列表用;公开/我的列表恒 false)。 */
+    private Boolean isDeleted;
+
     /**
      * 由歌曲实体构建列表项 VO。
      *
@@ -55,6 +58,7 @@ public class SongVO {
         vo.uploaderUid = song.getUploaderUid();
         vo.auditStatus = song.getAuditStatus();
         vo.auditRemark = song.getAuditRemark();
+        vo.isDeleted = song.getIsDeleted();
         return vo;
     }
 
@@ -128,5 +132,13 @@ public class SongVO {
 
     public void setAuditRemark(String auditRemark) {
         this.auditRemark = auditRemark;
+    }
+
+    public Boolean getIsDeleted() {
+        return isDeleted;
+    }
+
+    public void setIsDeleted(Boolean isDeleted) {
+        this.isDeleted = isDeleted;
     }
 }

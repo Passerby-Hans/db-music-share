@@ -51,6 +51,24 @@ public class SongAuditController {
     }
 
     /**
+     * 管理端歌曲全量列表(所有歌,含审核态 + 软删),支持筛选 + 分页。
+     *
+     * @param keyword     标题关键词,可空
+     * @param auditStatus 审核态 0/1/2;空=全部
+     * @param page        页码,默认 1
+     * @param size        每页条数,默认 10
+     * @return 分页歌曲列表(含 isDeleted)
+     */
+    @GetMapping("/all")
+    public Result<PageVO<SongVO>> listAll(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer auditStatus,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size) {
+        return Result.success(songService.listAllForAdmin(keyword, auditStatus, page, size));
+    }
+
+    /**
      * 审核一首待审歌曲：通过或驳回。
      *
      * @param sid 歌曲 sid
