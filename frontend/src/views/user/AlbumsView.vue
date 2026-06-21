@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listPublicAlbums } from '@/api/album'
+import type { AlbumSort } from '@/api/album'
 import type { AlbumVO } from '@/api/types'
 
 /**
@@ -15,11 +16,31 @@ const page = ref(1)
 const size = ref(12)
 const keyword = ref('')
 const loading = ref(false)
+/**
+ * 排序维度：最近添加(空串哨兵=不传 sort，走后端 aid 默认) / 最新发布(release_date)，
+ * 默认「最近添加」以保持原落地顺序。后端 desc 固定。
+ */
+const sort = ref<AlbumSort | ''>('')
+/** 排序下拉选项。 */
+const sortOptions: { label: string; value: AlbumSort | '' }[] = [
+  { label: '最近添加', value: '' },
+  { label: '最新发布', value: 'release_date' },
+]
+
+/** 发行日期格式化：取 YYYY-MM-DD 前 10 位，空 → —。 */
+function fmtDate(s: string | null): string {
+  return s ? s.slice(0, 10) : '—'
+}
 
 async function load() {
   loading.value = true
   try {
-    const res = await listPublicAlbums(keyword.value, page.value, size.value)
+    const res = await listPublicAlbums(
+      keyword.value,
+      page.value,
+      size.value,
+      sort.value || undefined,
+    )
     albums.value = res.records
     total.value = res.total
   } finally {
@@ -29,6 +50,12 @@ async function load() {
 onMounted(load)
 
 function onSearch() {
+  page.value = 1
+  load()
+}
+
+/** 切换排序：回第一页重新查。排序与搜索相互独立。 */
+function onSortChange() {
   page.value = 1
   load()
 }
@@ -55,6 +82,19 @@ function goDetail(a: AlbumVO) {
       >
         <template #append><el-button :icon="'Search'" @click="onSearch" /></template>
       </el-input>
+      <el-select
+        v-model="sort"
+        size="large"
+        class="sort"
+        @change="onSortChange"
+      >
+        <el-option
+          v-for="o in sortOptions"
+          :key="o.value"
+          :label="o.label"
+          :value="o.value"
+        />
+      </el-select>
     </div>
 
     <div v-loading="loading" class="content mt-6">
@@ -70,6 +110,7 @@ function goDetail(a: AlbumVO) {
           <div class="card-body">
             <div class="name text-ellipsis">{{ a.albumName }}</div>
             <div class="intro text-ellipsis">{{ a.introduction ?? '—' }}</div>
+            <div class="date">💿 发行 {{ fmtDate(a.releaseDate) }}</div>
           </div>
         </article>
       </div>
@@ -88,6 +129,9 @@ function goDetail(a: AlbumVO) {
 <style scoped>
 .search {
   max-width: 360px;
+}
+.sort {
+  width: 150px;
 }
 .content {
   min-height: 300px;
@@ -127,6 +171,11 @@ function goDetail(a: AlbumVO) {
   font-size: 12px;
   color: #6b7280;
   margin-top: 4px;
+}
+.date {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
 }
 .text-ellipsis {
   overflow: hidden;
