@@ -6,18 +6,27 @@ import type { AlbumDTO, AlbumDetailVO, AlbumVO, PageResult } from './types'
  */
 
 /**
- * 公开专辑列表（未删），可按专辑名模糊搜索，分页。
+ * 专辑公开列表排序维度（与后端 GET /album/public 的 sort 取值对齐）。
+ * - `release_date`：最新发布（按发行日期倒序）
+ * 不传或传未知值 → 后端回默认（aid 倒序，即「最近添加」）。后端 desc 固定，无升降序。
+ */
+export type AlbumSort = 'release_date'
+
+/**
+ * 公开专辑列表（未删），可按专辑名模糊搜索 + 指定排序，分页。
  * @param keyword 关键词，可空
  * @param page 页码
  * @param size 每页条数
+ * @param sort 排序维度，可空（不传走默认 aid 倒序，即「最近添加」）；后端 desc 固定
  */
 export function listPublicAlbums(
   keyword: string,
   page: number,
   size: number,
+  sort?: AlbumSort,
 ): Promise<PageResult<AlbumVO>> {
   return http.get('/album/public', {
-    params: { keyword: keyword || undefined, page, size },
+    params: { keyword: keyword || undefined, page, size, sort },
   }) as unknown as Promise<PageResult<AlbumVO>>
 }
 

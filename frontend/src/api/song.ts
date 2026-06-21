@@ -7,18 +7,28 @@ import type { PageResult, SongDetailVO, SongUpdateDTO, SongUploadDTO, SongVO } f
  */
 
 /**
- * 公开歌曲列表，可按标题模糊搜索，按 sid 倒序分页。
+ * 歌曲公开列表排序维度（与后端 GET /song/public 的 sort 取值对齐）。
+ * - `create_time`：最新（按创建时间倒序）
+ * - `play_count`：最热（按播放量倒序）
+ * 不传或传未知值 → 后端回默认（sid 倒序）。后端 desc 固定，无升降序。
+ */
+export type SongSort = 'create_time' | 'play_count'
+
+/**
+ * 公开歌曲列表，可按标题模糊搜索 + 指定排序，分页。
  * @param keyword 标题关键词，可空
  * @param page 页码（从 1 起）
  * @param size 每页条数
+ * @param sort 排序维度，可空（不传走默认 sid 倒序）；后端 desc 固定
  */
 export function listPublicSongs(
   keyword: string,
   page: number,
   size: number,
+  sort?: SongSort,
 ): Promise<PageResult<SongVO>> {
   return http.get('/song/public', {
-    params: { keyword: keyword || undefined, page, size },
+    params: { keyword: keyword || undefined, page, size, sort },
   }) as unknown as Promise<PageResult<SongVO>>
 }
 
