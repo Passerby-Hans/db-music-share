@@ -51,6 +51,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/user/AlbumDetailView.vue'),
       },
       {
+        path: 'rank',
+        name: 'rank',
+        component: () => import('@/views/user/RankView.vue'),
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/user/ProfileView.vue'),

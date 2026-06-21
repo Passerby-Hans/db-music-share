@@ -32,6 +32,7 @@ async function handleLogout() {
       <el-menu mode="horizontal" :ellipsis="false" router class="nav">
         <el-menu-item index="/songs">歌曲广场</el-menu-item>
         <el-menu-item index="/albums">专辑</el-menu-item>
+        <el-menu-item index="/rank">排行榜</el-menu-item>
         <el-menu-item index="/favorites">我的收藏</el-menu-item>
         <el-menu-item index="/playlists">我的歌单</el-menu-item>
         <el-sub-menu v-if="auth.isUploader" index="uploader">
