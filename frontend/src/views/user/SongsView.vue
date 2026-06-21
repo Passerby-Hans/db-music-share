@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listPublicSongs } from '@/api/song'
+import type { SongSort } from '@/api/song'
 import { usePlayerStore } from '@/stores/player'
 import type { SongVO } from '@/api/types'
 
@@ -21,6 +22,13 @@ const keyword = ref('')
 const loading = ref(false)
 /** 展示模式：网格 grid / 列表 list，用户可切换。 */
 const view = ref<'grid' | 'list'>('grid')
+/** 排序维度：最新(create_time) / 最热(play_count)，默认最新。后端 desc 固定。 */
+const sort = ref<SongSort>('create_time')
+/** 排序下拉选项。 */
+const sortOptions: { label: string; value: SongSort }[] = [
+  { label: '最新', value: 'create_time' },
+  { label: '最热', value: 'play_count' },
+]
 
 /** 时长秒 → mm:ss。 */
 function fmt(sec: number | null): string {
@@ -34,7 +42,7 @@ function fmt(sec: number | null): string {
 async function load() {
   loading.value = true
   try {
-    const res = await listPublicSongs(keyword.value, page.value, size.value)
+    const res = await listPublicSongs(keyword.value, page.value, size.value, sort.value)
     songs.value = res.records
     total.value = res.total
   } finally {
@@ -46,6 +54,12 @@ onMounted(load)
 
 /** 搜索：回到第一页重新查。 */
 function onSearch() {
+  page.value = 1
+  load()
+}
+
+/** 切换排序：回第一页重新查。排序与搜索相互独立——搜索时保留当前排序。 */
+function onSortChange() {
   page.value = 1
   load()
 }
@@ -99,6 +113,19 @@ function isPlaying(song: SongVO): boolean {
           <el-button :icon="'Search'" @click="onSearch" />
         </template>
       </el-input>
+      <el-select
+        v-model="sort"
+        size="large"
+        class="sort"
+        @change="onSortChange"
+      >
+        <el-option
+          v-for="o in sortOptions"
+          :key="o.value"
+          :label="o.label"
+          :value="o.value"
+        />
+      </el-select>
       <el-radio-group v-model="view" size="large">
         <el-radio-button value="grid">网格</el-radio-button>
         <el-radio-button value="list">列表</el-radio-button>
@@ -202,6 +229,9 @@ function isPlaying(song: SongVO): boolean {
 }
 .search {
   max-width: 420px;
+}
+.sort {
+  width: 132px;
 }
 .content {
   min-height: 320px;
@@ -314,6 +344,9 @@ function isPlaying(song: SongVO): boolean {
   }
   .search {
     max-width: none;
+  }
+  .sort {
+    width: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
