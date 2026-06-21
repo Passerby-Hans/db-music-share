@@ -110,6 +110,23 @@ export interface AlbumVO {
   creatorUid: number
 }
 
+/** 排行榜类型：总榜 / 日榜 / 周榜（与后端 GET /api/rank/{board} 路径段对齐）。 */
+export type RankBoard = 'total' | 'daily' | 'weekly'
+
+/** 排行榜单项（后端 RankItemVO）。封面为公开直链，由 service 层 publicUrl 包装。 */
+export interface RankItemVO {
+  /** 名次（从 1 起）。 */
+  rank: number
+  sid: number
+  title: string
+  /** 封面公开直链，可能为 null。 */
+  cover: string | null
+  /** 上传者昵称，可能为 null（如上传者已删）。 */
+  uploaderName: string | null
+  /** 该榜单时间窗内播放次数。 */
+  score: number
+}
+
 /** 上传歌曲请求体。专辑归属三选一：albumAid / newAlbumName / 都不传(缺省专辑)。 */
 export interface SongUploadDTO {
   title: string
