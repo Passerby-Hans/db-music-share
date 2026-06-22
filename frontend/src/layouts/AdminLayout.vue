@@ -47,6 +47,10 @@ async function handleLogout() {
           <el-icon><FolderDelete /></el-icon>
           <span>存储维护</span>
         </el-menu-item>
+        <el-menu-item index="/admin/stats">
+          <el-icon><TrendCharts /></el-icon>
+          <span>统计报表</span>
+        </el-menu-item>
       </el-menu>
       <div class="aside-footer">
         <el-button class="back-btn" link @click="backToUser">← 返回用户端</el-button>

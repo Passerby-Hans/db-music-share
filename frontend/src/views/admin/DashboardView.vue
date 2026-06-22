@@ -36,6 +36,11 @@ const router = useRouter()
         <h3>存储维护</h3>
         <p>孤儿文件扫描清理</p>
       </article>
+      <article class="entry section-card p-6" @click="router.push('/admin/stats')">
+        <div class="entry-icon"><el-icon><TrendCharts /></el-icon></div>
+        <h3>统计报表</h3>
+        <p>活跃度 / 贡献 / 播放量 TOP10</p>
+      </article>
     </div>
   </div>
 </template>
@@ -48,7 +53,7 @@ const router = useRouter()
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
 }
 .entry {

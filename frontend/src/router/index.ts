@@ -121,6 +121,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-storage',
         component: () => import('@/views/admin/StorageView.vue'),
       },
+      {
+        path: 'stats',
+        name: 'admin-stats',
+        component: () => import('@/views/admin/StatsView.vue'),
+      },
     ],
   },
   // 兜底：未匹配路由回首页
