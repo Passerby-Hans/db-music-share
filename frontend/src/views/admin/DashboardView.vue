@@ -41,6 +41,16 @@ const router = useRouter()
         <h3>统计报表</h3>
         <p>活跃度 / 贡献 / 播放量 TOP10</p>
       </article>
+      <article class="entry section-card p-6" @click="router.push('/admin/songs')">
+        <div class="entry-icon"><el-icon><Document /></el-icon></div>
+        <h3>歌曲管理</h3>
+        <p>全站歌曲 / 下架</p>
+      </article>
+      <article class="entry section-card p-6" @click="router.push('/admin/comments')">
+        <div class="entry-icon"><el-icon><ChatDotRound /></el-icon></div>
+        <h3>评论管理</h3>
+        <p>全站评论 / 强删</p>
+      </article>
     </div>
   </div>
 </template>

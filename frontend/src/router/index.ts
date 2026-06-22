@@ -126,6 +126,16 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-stats',
         component: () => import('@/views/admin/StatsView.vue'),
       },
+      {
+        path: 'songs',
+        name: 'admin-songs',
+        component: () => import('@/views/admin/SongsManageView.vue'),
+      },
+      {
+        path: 'comments',
+        name: 'admin-comments',
+        component: () => import('@/views/admin/CommentsManageView.vue'),
+      },
     ],
   },
   // 兜底：未匹配路由回首页

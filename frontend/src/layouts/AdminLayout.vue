@@ -51,6 +51,14 @@ async function handleLogout() {
           <el-icon><TrendCharts /></el-icon>
           <span>统计报表</span>
         </el-menu-item>
+        <el-menu-item index="/admin/songs">
+          <el-icon><Document /></el-icon>
+          <span>歌曲管理</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/comments">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>评论管理</span>
+        </el-menu-item>
       </el-menu>
       <div class="aside-footer">
         <el-button class="back-btn" link @click="backToUser">← 返回用户端</el-button>
