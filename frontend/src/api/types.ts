@@ -127,6 +127,28 @@ export interface RankItemVO {
   score: number
 }
 
+/** 统计：用户活跃度 TOP10 项（后端 TopUserVO）。头像为公开直链。 */
+export interface TopUserVO {
+  rank: number
+  uid: number
+  nickname: string
+  avatar: string | null
+  /** 该用户总点唱次数。 */
+  playCount: number
+}
+
+/** 统计：上传者贡献 TOP10 项（后端 TopUploaderVO）。按 totalPlayCount 倒序。 */
+export interface TopUploaderVO {
+  rank: number
+  uid: number
+  nickname: string
+  avatar: string | null
+  /** 该上传者未软删的音乐数量。 */
+  songCount: number
+  /** 这些音乐的总播放量。 */
+  totalPlayCount: number
+}
+
 /** 上传歌曲请求体。专辑归属三选一：albumAid / newAlbumName / 都不传(缺省专辑)。 */
 export interface SongUploadDTO {
   title: string

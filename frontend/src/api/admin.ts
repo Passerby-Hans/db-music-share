@@ -5,6 +5,8 @@ import type {
   PageResult,
   SongAuditDTO,
   SongVO,
+  TopUploaderVO,
+  TopUserVO,
 } from './types'
 
 /**
@@ -84,4 +86,20 @@ export function orphanScan(dryRun: boolean): Promise<OrphanScanVO> {
   return http.post('/admin/storage/orphan-scan', null, {
     params: { dryRun },
   }) as unknown as Promise<OrphanScanVO>
+}
+
+// ============================ 统计报表 ============================
+
+/**
+ * 用户活跃度 TOP10（按点唱次数倒序，role=2）。
+ */
+export function getTopUsers(): Promise<TopUserVO[]> {
+  return http.get('/admin/stats/top-users') as unknown as Promise<TopUserVO[]>
+}
+
+/**
+ * 上传者贡献 TOP10（按总播放量倒序，role=2）。
+ */
+export function getTopUploaders(): Promise<TopUploaderVO[]> {
+  return http.get('/admin/stats/top-uploaders') as unknown as Promise<TopUploaderVO[]>
 }
