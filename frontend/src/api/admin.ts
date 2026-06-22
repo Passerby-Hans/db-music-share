@@ -1,6 +1,7 @@
 import http from './http'
 import type {
   AdminUserVO,
+  CommentVO,
   OrphanScanVO,
   PageResult,
   SongAuditDTO,
@@ -102,4 +103,31 @@ export function getTopUsers(): Promise<TopUserVO[]> {
  */
 export function getTopUploaders(): Promise<TopUploaderVO[]> {
   return http.get('/admin/stats/top-uploaders') as unknown as Promise<TopUploaderVO[]>
+}
+
+// ============================ 内容管理 ============================
+
+/**
+ * 管理端歌曲全量列表（含各审核态 + 软删，sid 倒序，role=2）。
+ * 返回 SongVO 含 isDeleted 标记。
+ */
+export function listAllSongs(params: {
+  keyword?: string
+  auditStatus?: number
+  page: number
+  size: number
+}): Promise<PageResult<SongVO>> {
+  return http.get('/admin/song/all', { params }) as unknown as Promise<PageResult<SongVO>>
+}
+
+/**
+ * 管理端评论全站列表（主评论 + 回复，时间倒序，回填 songTitle，role=2）。
+ * 返回 CommentVO 含 sid + songTitle。
+ */
+export function listAllComments(params: {
+  keyword?: string
+  page: number
+  size: number
+}): Promise<PageResult<CommentVO>> {
+  return http.get('/admin/comment', { params }) as unknown as Promise<PageResult<CommentVO>>
 }

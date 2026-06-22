@@ -89,6 +89,8 @@ export interface SongVO {
   /** 审核状态：0 待审 / 1 通过 / 2 驳回。 */
   auditStatus: number
   auditRemark: string | null
+  /** 是否已软删（管理端可见；公开口径恒为 false/缺省）。 */
+  isDeleted?: boolean
 }
 
 /** 歌曲详情（GET /api/song/public/{sid}），比列表项多歌词/音频/上传时间。 */
@@ -224,6 +226,10 @@ export interface CommentVO {
   likedByMe: boolean
   replyCount: number
   createTime: string
+  /** 所属歌曲 sid（管理端/listMine 回填）。 */
+  sid?: number
+  /** 所属歌曲名（管理端/listMine 回填，可能 null）。 */
+  songTitle?: string | null
 }
 
 /** 回复项（挂在主评论下，含 parentCid、无 replyCount）。 */
