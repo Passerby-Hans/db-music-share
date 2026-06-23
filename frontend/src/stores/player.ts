@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { getPlayUrl } from '@/api/song'
+import { recordPlay } from '@/api/playRecord'
 import type { SongVO } from '@/api/types'
 
 /**
@@ -41,9 +42,14 @@ export const usePlayerStore = defineStore('player', {
       this.loading = true
       try {
         const url = await getPlayUrl(song.sid)
+        // 点唱埋点：拿到播放地址=歌曲可见可播，上报一次。fire-and-forget——不 await、不阻断播放；
+        // 失败由 http 拦截器处理。后端 60s 去重（同 uid+sid）防刷量，故前端每次 play() 如实上报即可。
+        void recordPlay(song.sid)
         this.current = song
         this.currentUrl = url
         this.playing = true
+        // 乐观反馈：播放条「播放量」即时 +1（DB 已事务内 +1；广场/详情页数字以 reload 为准）。
+        song.playCount = (song.playCount ?? 0) + 1
         if (queue && queue.length) {
           this.queue = queue
           this.index = queue.findIndex((s) => s.sid === song.sid)
