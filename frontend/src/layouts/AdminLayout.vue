@@ -35,10 +35,6 @@ async function handleLogout() {
           <el-icon><DataBoard /></el-icon>
           <span>概览</span>
         </el-menu-item>
-        <el-menu-item index="/admin/audit">
-          <el-icon><Stamp /></el-icon>
-          <span>歌曲审核</span>
-        </el-menu-item>
         <el-menu-item index="/admin/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
