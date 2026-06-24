@@ -55,7 +55,22 @@ onMounted(async () => {
   myAlbums.value = res.records.filter((a) => !a.isDefault)
 })
 
-/** 选音频：仅暂存，校验扩展名/大小。 */
+/** 选中音频后自动探测时长（秒）填入表单：用临时 <audio> 读元数据；浏览器读不出该格式则静默跳过。 */
+function detectDuration(raw: File): void {
+  const url = URL.createObjectURL(raw)
+  const audio = new Audio()
+  audio.preload = 'metadata'
+  audio.onloadedmetadata = () => {
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      form.duration = Math.round(audio.duration)
+    }
+    URL.revokeObjectURL(url)
+  }
+  audio.onerror = () => URL.revokeObjectURL(url)
+  audio.src = url
+}
+
+/** 选音频：仅暂存，校验扩展名/大小，并自动探测时长。 */
 function onAudioChange(file: UploadUserFile): boolean {
   const raw = file.raw as UploadRawFile
   const ext = raw.name.split('.').pop()?.toLowerCase() ?? ''
@@ -70,6 +85,7 @@ function onAudioChange(file: UploadUserFile): boolean {
     return false
   }
   audioFile.value = raw
+  detectDuration(raw) // 自动填时长（读不到则保持手填）
   return false // 阻止 el-upload 自动上传，提交时统一传
 }
 
@@ -165,7 +181,7 @@ async function onSubmit() {
         </el-form-item>
 
         <el-form-item label="时长(秒)">
-          <el-input-number v-model="form.duration" :min="1" placeholder="可选" />
+          <el-input-number v-model="form.duration" :min="1" placeholder="选音频后自动获取，可改" />
         </el-form-item>
 
         <el-form-item label="歌词">
