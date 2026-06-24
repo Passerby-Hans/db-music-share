@@ -124,6 +124,10 @@ public abstract class AbstractIntegrationTest {
         // 公开直链基址也指向测试容器，保证 publicUrl 拼接出的地址可用
         registry.add("storage.minio.public-base-url",
                 () -> "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000));
+        // presign 对外端点也指向测试容器：否则回退 application.yml 的 localhost:9000，
+        // 预签名 URL 会指向错误端口(甚至本机另一套 MinIO)，GET 取不到对象而 404。
+        registry.add("storage.minio.public-endpoint",
+                () -> "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000));
     }
 
     /** 黑盒打接口的入口；子类直接使用。 */
