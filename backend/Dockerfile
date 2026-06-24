@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ---- build：Maven 编译打包(JDK 21；跳过测试——测试依赖 Testcontainers/Docker) ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build

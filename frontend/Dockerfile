@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ---- build：pnpm 构建静态产物 ----
 FROM node:20-alpine AS build
 WORKDIR /build
