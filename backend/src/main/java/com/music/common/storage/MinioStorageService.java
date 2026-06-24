@@ -10,6 +10,7 @@ import io.minio.messages.Item;
 import io.minio.http.Method;
 import com.music.common.exception.BizException;
 import com.music.common.result.ResultCode;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,10 +34,14 @@ public class MinioStorageService implements StorageService {
     private static final DateTimeFormatter MONTH_PATH = DateTimeFormatter.ofPattern("yyyy/MM");
 
     private final MinioClient client;
+    private final MinioClient presignClient;
     private final StorageProperties props;
 
-    public MinioStorageService(MinioClient client, StorageProperties props) {
+    public MinioStorageService(MinioClient client,
+                               @Qualifier("presignClient") MinioClient presignClient,
+                               StorageProperties props) {
         this.client = client;
+        this.presignClient = presignClient;
         this.props = props;
     }
 
@@ -88,7 +93,7 @@ public class MinioStorageService implements StorageService {
             return null;
         }
         try {
-            return client.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            return presignClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
                     .bucket(bucketName(bucket))
                     .object(key)

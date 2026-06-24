@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * MinIO 客户端配置与启动初始化。
@@ -28,9 +29,28 @@ public class MinioConfig {
      * @return MinioClient 实例
      */
     @Bean
+    @Primary
     public MinioClient minioClient(StorageProperties props) {
         return MinioClient.builder()
                 .endpoint(props.getEndpoint())
+                .credentials(props.getAccessKey(), props.getSecretKey())
+                .build();
+    }
+
+    /**
+     * presign 专用客户端：用对外端点(浏览器可达)构建，仅供生成预签名 URL。
+     * {@code publicEndpoint} 空白时回退 {@code endpoint}，保证 dev/测试行为不变。
+     *
+     * @param props 存储配置
+     * @return 以对外端点构建的 MinioClient
+     */
+    @Bean("presignClient")
+    public MinioClient presignClient(StorageProperties props) {
+        String ep = (props.getPublicEndpoint() == null || props.getPublicEndpoint().isBlank())
+                ? props.getEndpoint()
+                : props.getPublicEndpoint();
+        return MinioClient.builder()
+                .endpoint(ep)
                 .credentials(props.getAccessKey(), props.getSecretKey())
                 .build();
     }

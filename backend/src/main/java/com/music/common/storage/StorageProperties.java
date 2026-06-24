@@ -34,6 +34,9 @@ public class StorageProperties {
     /** 封面直链对外基址(浏览器可达的 MinIO 地址)。 */
     private String publicBaseUrl;
 
+    /** presign 专用对外端点(浏览器可达的 MinIO 地址)；空白则回退 {@link #endpoint}。 */
+    private String publicEndpoint;
+
     /** 孤儿扫描安全期(分钟)：早于"当前时间-该值"且无引用的对象才删，避开上传未建歌的竞态。 */
     private int orphanSafeMinutes = 120;
 
@@ -94,6 +97,14 @@ public class StorageProperties {
 
     public void setPublicBaseUrl(String publicBaseUrl) {
         this.publicBaseUrl = publicBaseUrl;
+    }
+
+    public String getPublicEndpoint() {
+        return publicEndpoint;
+    }
+
+    public void setPublicEndpoint(String publicEndpoint) {
+        this.publicEndpoint = publicEndpoint;
     }
 
     public int getOrphanSafeMinutes() {

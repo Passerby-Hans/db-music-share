@@ -38,6 +38,9 @@ storage:
     presigned-expiry-seconds: 7200
     # 封面直链对外基址(浏览器可访问的 MinIO 地址；与 endpoint 同源)
     public-base-url: http://localhost:9000
+    # presign 对外端点(浏览器可达的 MinIO 地址)；空白回退 endpoint。
+    # dev 与 endpoint 同址(行为不变)；容器部署由 STORAGE_MINIO_PUBLIC_ENDPOINT 覆盖
+    public-endpoint: http://localhost:9000
     # 孤儿文件扫描：安全期(分钟，保护刚上传未建歌的文件) 与 定时清理 cron
     orphan-safe-minutes: 120
     orphan-cron: "0 30 4 * * *"
