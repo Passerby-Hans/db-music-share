@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { usePlayerStore } from '@/stores/player'
+import { usePlayerStore, type PlayMode } from '@/stores/player'
 
 /**
  * 全局底部播放条：常驻用户端布局底部，持有唯一的 <audio> 元素。
@@ -15,6 +15,16 @@ import { usePlayerStore } from '@/stores/player'
 const player = usePlayerStore()
 const router = useRouter()
 const audioRef = ref<HTMLAudioElement>()
+
+/** 各播放模式的按钮字形与 tooltip 文案（模式键展示用）。 */
+const MODE_META: Record<PlayMode, { label: string; glyph: string }> = {
+  list: { label: '列表循环', glyph: '🔁' },
+  one: { label: '单曲循环', glyph: '🔂' },
+  order: { label: '顺序播放', glyph: '➡️' },
+  shuffle: { label: '随机播放', glyph: '🔀' },
+}
+/** 当前模式的展示信息（随 player.mode 变化）。 */
+const modeMeta = computed(() => MODE_META[player.mode])
 
 /** 点歌名/封面进入该歌详情页。 */
 function openDetail() {
@@ -86,8 +96,19 @@ function onTimeUpdate() {
   currentTime.value = audioRef.value?.currentTime ?? 0
 }
 
-/** 一曲播完自动下一首。 */
+/**
+ * 一曲播完的自动续播：单曲循环原地重播（不重新埋点、不增播放量）；
+ * 其余模式交给 player.next()（列表绕回 / 顺序到尾自然停 / 随机另一首）。
+ */
 function onEnded() {
+  if (player.mode === 'one') {
+    const el = audioRef.value
+    if (el) {
+      el.currentTime = 0
+      void el.play().catch(() => player.setPlaying(false))
+    }
+    return
+  }
   player.next()
 }
 
@@ -128,6 +149,9 @@ watch(volume, (v) => {
     <!-- 中：控制 + 进度 -->
     <div class="controls">
       <div class="btns">
+        <el-tooltip :content="modeMeta.label" placement="top">
+          <el-button circle class="mode-btn" @click="player.cycleMode()">{{ modeMeta.glyph }}</el-button>
+        </el-tooltip>
         <el-button circle :icon="'ArrowLeftBold'" @click="player.prev()" />
         <el-button
           circle
@@ -232,6 +256,10 @@ watch(volume, (v) => {
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+.mode-btn {
+  font-size: 17px;
+  line-height: 1;
 }
 .progress {
   display: flex;
