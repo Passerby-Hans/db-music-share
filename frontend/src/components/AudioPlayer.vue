@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { usePlayerStore, type PlayMode } from '@/stores/player'
+import { getFavoriteStatus, favorite, unfavorite } from '@/api/favorite'
+import { listMyPlaylists, addSongToPlaylist } from '@/api/playlist'
+import type { PlaylistVO } from '@/api/types'
 
 /**
  * 全局底部播放条：常驻用户端布局底部，持有唯一的 <audio> 元素。
@@ -25,6 +29,71 @@ const MODE_META: Record<PlayMode, { label: string; glyph: string }> = {
 }
 /** 当前模式的展示信息（随 player.mode 变化）。 */
 const modeMeta = computed(() => MODE_META[player.mode])
+
+// —— 播放栏快捷操作：收藏 ——
+/** 当前歌是否已收藏（切歌时查一次点亮）。 */
+const isFav = ref(false)
+const favLoading = ref(false)
+
+// 切歌时刷新收藏态（无歌则复位）。播放条只在登录用户端布局出现，无需额外鉴权判断。
+watch(
+  () => player.current?.sid,
+  async (sid) => {
+    if (!sid) {
+      isFav.value = false
+      return
+    }
+    try {
+      isFav.value = await getFavoriteStatus(sid)
+    } catch {
+      // 状态查询失败按未收藏显示；http 拦截器已处理报错
+      isFav.value = false
+    }
+  },
+  { immediate: true },
+)
+
+/** 切换收藏（幂等）。 */
+async function toggleFav() {
+  const sid = player.current?.sid
+  if (!sid || favLoading.value) return
+  favLoading.value = true
+  try {
+    if (isFav.value) {
+      await unfavorite(sid)
+      isFav.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await favorite(sid)
+      isFav.value = true
+      ElMessage.success('已收藏')
+    }
+  } finally {
+    favLoading.value = false
+  }
+}
+
+// —— 播放栏快捷操作：加入歌单 ——
+const myPlaylists = ref<PlaylistVO[]>([])
+const plLoading = ref(false)
+
+/** popover 打开时拉「我的歌单」（每次打开都拉，保证新鲜）。 */
+async function onPlaylistShow() {
+  plLoading.value = true
+  try {
+    myPlaylists.value = (await listMyPlaylists(1, 100)).records
+  } finally {
+    plLoading.value = false
+  }
+}
+
+/** 把当前歌加入选中的歌单（幂等）。失败由 http 拦截器弹消息。 */
+async function addToPlaylist(pl: PlaylistVO) {
+  const sid = player.current?.sid
+  if (!sid) return
+  await addSongToPlaylist(pl.plid, sid)
+  ElMessage.success(`已加入《${pl.playlistName}》`)
+}
 
 /** 点歌名/封面进入该歌详情页。 */
 function openDetail() {
@@ -176,6 +245,39 @@ watch(volume, (v) => {
       </div>
     </div>
 
+    <!-- 右：快捷操作（收藏 / 加入歌单） -->
+    <div class="actions">
+      <el-tooltip :content="isFav ? '取消收藏' : '收藏'" placement="top">
+        <el-button
+          circle
+          :icon="isFav ? 'StarFilled' : 'Star'"
+          :class="{ faved: isFav }"
+          :loading="favLoading"
+          :disabled="!player.current"
+          @click="toggleFav"
+        />
+      </el-tooltip>
+      <el-popover placement="top" :width="240" trigger="click" @show="onPlaylistShow">
+        <template #reference>
+          <el-button circle :icon="'Plus'" :disabled="!player.current" />
+        </template>
+        <div v-loading="plLoading" class="pl-pop">
+          <div class="pl-pop-title">加入歌单</div>
+          <el-empty
+            v-if="!plLoading && myPlaylists.length === 0"
+            :image-size="50"
+            description="还没有歌单"
+          />
+          <ul v-else class="pl-list">
+            <li v-for="pl in myPlaylists" :key="pl.plid" @click="addToPlaylist(pl)">
+              <span class="pl-nm text-ellipsis">{{ pl.playlistName }}</span>
+              <span class="pl-cnt">{{ pl.songCount }} 首</span>
+            </li>
+          </ul>
+        </div>
+      </el-popover>
+    </div>
+
     <!-- 右：音量 -->
     <div class="volume">
       <el-icon><Microphone /></el-icon>
@@ -278,6 +380,50 @@ watch(volume, (v) => {
   color: #6b7280;
   width: 42px;
   text-align: center;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.actions .faved {
+  color: #f59e0b;
+}
+.pl-pop-title {
+  font-weight: 800;
+  font-size: 13px;
+  color: #111827;
+  margin-bottom: 8px;
+}
+.pl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.pl-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pl-list li:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+.pl-nm {
+  font-size: 14px;
+  color: #111827;
+  min-width: 0;
+}
+.pl-cnt {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
 }
 .volume {
   display: flex;
