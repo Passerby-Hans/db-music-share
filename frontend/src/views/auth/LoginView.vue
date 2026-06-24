@@ -47,23 +47,12 @@ async function onSubmit() {
 <template>
   <div class="auth-shell">
     <section class="auth-brand page-hero p-10">
-      <span class="hero-kicker">Music Share</span>
-      <h1 class="hero-title mt-6">让每一次分享，都有被听见的光。</h1>
-      <p class="hero-subtitle mt-5 max-w-xl">
-        登录后可以发现音乐、收藏歌曲、创建歌单、参与评论评分，并继续你的播放队列。
-      </p>
-      <div class="brand-orbit" aria-hidden="true">
-        <div class="album album-a">♪</div>
-        <div class="album album-b">▶</div>
-        <div class="album album-c">✦</div>
-      </div>
+      <h1 class="hero-title">在线音乐分享系统</h1>
     </section>
 
     <el-card class="auth-card glass-card" body-style="padding: 34px">
       <div class="form-head">
-        <span class="form-kicker">Welcome back</span>
         <h2 class="auth-title">登录账号</h2>
-        <p>继续管理你的音乐收藏与播放体验。</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent>
         <el-form-item label="用户名" prop="username">
@@ -94,48 +83,6 @@ async function onSubmit() {
 .auth-brand {
   min-height: 560px;
 }
-.brand-orbit {
-  position: relative;
-  height: 240px;
-  margin-top: 42px;
-}
-.album {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 34px;
-  font-weight: 900;
-  box-shadow: 0 24px 80px rgba(99, 102, 241, 0.22);
-}
-.album-a {
-  left: 6%;
-  top: 18px;
-  width: 148px;
-  height: 148px;
-  border-radius: 34px;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  transform: rotate(-8deg);
-}
-.album-b {
-  left: 38%;
-  top: 78px;
-  width: 126px;
-  height: 126px;
-  border-radius: 30px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  transform: rotate(10deg);
-}
-.album-c {
-  right: 8%;
-  top: 16px;
-  width: 110px;
-  height: 110px;
-  border-radius: 28px;
-  background: linear-gradient(135deg, #a78bfa, #60a5fa);
-  transform: rotate(-14deg);
-}
 .auth-card {
   width: min(430px, 100%);
   justify-self: center;
@@ -143,23 +90,12 @@ async function onSubmit() {
 .form-head {
   margin-bottom: 28px;
 }
-.form-kicker {
-  color: #6366f1;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
 .auth-title {
   margin: 8px 0;
   color: #111827;
   font-size: 30px;
   font-weight: 900;
   letter-spacing: -0.04em;
-}
-.form-head p {
-  margin: 0;
-  color: #6b7280;
 }
 .auth-submit {
   width: 100%;
@@ -179,9 +115,6 @@ async function onSubmit() {
 @media (max-width: 900px) {
   .auth-brand {
     min-height: auto;
-  }
-  .brand-orbit {
-    display: none;
   }
 }
 </style>
