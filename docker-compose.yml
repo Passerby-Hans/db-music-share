@@ -1,0 +1,101 @@
+# =====================================================================
+# 在线音乐分享系统 — 发行版整栈编排(默认名 docker-compose.yml)
+# 用法：docker compose up --build -d
+#   · 干净库：postgres 只建 schema+索引，无数据；测试数据用 scripts/seed-testdata.*
+#   · 独立 project name + 独立卷，与 docker-compose.dev.yml 完全隔离
+#   · 浏览器：应用 http://localhost:${APP_PORT:-8080}；MinIO 经 nginx :${MINIO_PORT:-9000}
+# =====================================================================
+name: music-release
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: music_share
+      POSTGRES_USER: music
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-music123}
+      LANG: C.UTF-8
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - release_pgdata:/var/lib/postgresql/data
+      # 仅建表 + 索引；不挂 03_seed(测试数据由脚本导入)
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/02_indexes.sql:/docker-entrypoint-initdb.d/02_indexes.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music -d music_share"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - release_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: music
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-music123456}
+    volumes:
+      - release_miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/music_share
+      SPRING_DATASOURCE_USERNAME: music
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-music123}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      STORAGE_MINIO_ENDPOINT: http://minio:9000
+      STORAGE_MINIO_PUBLIC_ENDPOINT: http://${PUBLIC_HOST:-localhost}:${MINIO_PORT:-9000}
+      STORAGE_MINIO_PUBLIC_BASE_URL: http://${PUBLIC_HOST:-localhost}:${MINIO_PORT:-9000}
+      STORAGE_MINIO_ACCESS_KEY: music
+      STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-music123456}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health | grep -q UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  nginx:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:80"
+      - "${MINIO_PORT:-9000}:9000"
+
+volumes:
+  release_pgdata:
+  release_redisdata:
+  release_miniodata:
