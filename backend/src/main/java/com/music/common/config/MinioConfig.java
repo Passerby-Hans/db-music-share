@@ -52,6 +52,9 @@ public class MinioConfig {
         return MinioClient.builder()
                 .endpoint(ep)
                 .credentials(props.getAccessKey(), props.getSecretKey())
+                // 显式区域：presign 纯本地签名，避免 minio-java 发 GetBucketLocation 查询区域——
+                // 对外端点(如 localhost:9100)在后端容器内不可达，查询会连接失败。MinIO 单区域忽略此值。
+                .region("us-east-1")
                 .build();
     }
     /**
