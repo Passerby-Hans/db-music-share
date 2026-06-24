@@ -107,9 +107,9 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/DashboardView.vue'),
       },
       {
+        // 审核页已并入「歌曲管理」（默认「待审」筛选）；旧路径重定向，防旧链接 404
         path: 'audit',
-        name: 'admin-audit',
-        component: () => import('@/views/admin/AuditView.vue'),
+        redirect: { name: 'admin-songs' },
       },
       {
         path: 'users',

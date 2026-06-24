@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listAllSongs } from '@/api/admin'
+import { listAllSongs, auditSong } from '@/api/admin'
 import { deleteSong } from '@/api/song'
 import { AuditStatus, type SongVO } from '@/api/types'
 
 /**
- * 歌曲管理页（管理后台 role=2）：全站歌曲（含各审核态 + 软删），筛选 + 下架（软删）。
- * 下架复用 DELETE /api/song/{sid}（管理员越权软删 + 物理删音频/封面文件）。
+ * 歌曲管理页（管理后台 role=2）：全站歌曲（含各审核态 + 软删），筛选 + 审核（通过/驳回）+ 下架（软删）。
+ * 合并自原「歌曲审核」页：待审歌曲可通过/驳回（auditSong）；任意歌可下架（deleteSong：管理员越权软删 + 物理删音频/封面文件）。
  */
 const songs = ref<SongVO[]>([])
 const total = ref(0)
@@ -15,9 +15,9 @@ const page = ref(1)
 const size = ref(10)
 const loading = ref(false)
 
-/** 筛选：标题关键字 + 审核态（''=全部）。 */
+/** 筛选：标题关键字 + 审核态（''=全部）；默认「待审」= 进页即审核队列。 */
 const keyword = ref('')
-const auditStatus = ref<number | ''>('')
+const auditStatus = ref<number | ''>(AuditStatus.PENDING)
 
 /** 审核态下拉选项。 */
 const statusOptions: { label: string; value: number | '' }[] = [
@@ -82,6 +82,35 @@ async function takeDown(s: SongVO) {
     acting[s.sid] = false
   }
 }
+
+/** 通过待审歌曲。 */
+async function pass(s: SongVO) {
+  acting[s.sid] = true
+  try {
+    await auditSong(s.sid, { pass: true })
+    ElMessage.success(`《${s.title}》已通过`)
+    await load()
+  } finally {
+    acting[s.sid] = false
+  }
+}
+
+/** 驳回待审歌曲：弹窗填理由（非空）。 */
+async function reject(s: SongVO) {
+  const { value } = await ElMessageBox.prompt('请输入驳回理由', `驳回《${s.title}》`, {
+    inputPattern: /\S+/,
+    inputErrorMessage: '驳回理由不能为空',
+    inputType: 'textarea',
+  })
+  acting[s.sid] = true
+  try {
+    await auditSong(s.sid, { pass: false, remark: value.trim() })
+    ElMessage.success('已驳回')
+    await load()
+  } finally {
+    acting[s.sid] = false
+  }
+}
 </script>
 
 <template>
@@ -89,7 +118,7 @@ async function takeDown(s: SongVO) {
     <section class="page-hero p-6 mb-6">
       <span class="hero-kicker">Content</span>
       <h1 class="hero-title mt-4" style="font-size: clamp(1.5rem, 3vw, 2.4rem)">歌曲管理</h1>
-      <p class="hero-subtitle mt-2">全站歌曲：浏览、按审核态筛选、下架违规内容。</p>
+      <p class="hero-subtitle mt-2">全站歌曲：审核（通过/驳回）、按状态筛选、下架违规内容。</p>
     </section>
 
     <el-card>
@@ -130,8 +159,26 @@ async function takeDown(s: SongVO) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="110">
+        <el-table-column label="操作" width="240">
           <template #default="{ row }">
+            <el-button
+              v-if="row.auditStatus === AuditStatus.PENDING && !row.isDeleted"
+              size="small"
+              type="success"
+              :loading="acting[row.sid]"
+              @click="pass(row)"
+            >
+              通过
+            </el-button>
+            <el-button
+              v-if="row.auditStatus === AuditStatus.PENDING && !row.isDeleted"
+              size="small"
+              type="warning"
+              :loading="acting[row.sid]"
+              @click="reject(row)"
+            >
+              驳回
+            </el-button>
             <el-button
               size="small"
               type="danger"

@@ -21,11 +21,6 @@ const router = useRouter()
     </section>
 
     <div class="cards">
-      <article class="entry section-card p-6" @click="router.push('/admin/audit')">
-        <div class="entry-icon"><el-icon><Stamp /></el-icon></div>
-        <h3>歌曲审核</h3>
-        <p>待审列表 / 通过 / 驳回</p>
-      </article>
       <article class="entry section-card p-6" @click="router.push('/admin/users')">
         <div class="entry-icon"><el-icon><User /></el-icon></div>
         <h3>用户管理</h3>
@@ -44,7 +39,7 @@ const router = useRouter()
       <article class="entry section-card p-6" @click="router.push('/admin/songs')">
         <div class="entry-icon"><el-icon><Document /></el-icon></div>
         <h3>歌曲管理</h3>
-        <p>全站歌曲 / 下架</p>
+        <p>审核 / 筛选 / 下架</p>
       </article>
       <article class="entry section-card p-6" @click="router.push('/admin/comments')">
         <div class="entry-icon"><el-icon><ChatDotRound /></el-icon></div>
