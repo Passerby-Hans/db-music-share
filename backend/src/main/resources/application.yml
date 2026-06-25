@@ -19,11 +19,12 @@ spring:
       port: 6380
       timeout: 3000ms
 
-  # 文件上传体积上限(音频较大，单文件放宽到 50MB)
+  # 文件上传体积上限(支持无损 flac 等大文件，单文件放宽到 100MB)
+  # 注意：发行版 nginx /api 转发处 client_max_body_size 须 ≥ 此值，否则被 nginx 先 413 打回
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 55MB
+      max-file-size: 100MB
+      max-request-size: 110MB
 
 # 对象存储(MinIO)
 storage:
