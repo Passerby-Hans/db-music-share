@@ -21,6 +21,8 @@ app.log
 # ===== 本地覆盖配置 =====
 application-local.yml
 *-local.yml
+# docker compose 本地覆盖(含数据库/MinIO 密码,绝不提交)
+.env
 
 # ===== 误生成的空 npm 文件(后端为 Maven,前端尚未初始化) =====
 /package.json

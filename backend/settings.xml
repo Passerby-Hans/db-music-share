@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  容器内 Maven 阿里云镜像配置(仅 docker 构建用)。
+
+  WHY:docker build 时构建容器是干净的 Maven 环境,用不到宿主机的 ~/.m2 缓存,
+  默认从 Maven Central(repo1.maven.org)下载依赖,国内直连很慢、每次重建都重下。
+  挂阿里云公共仓库 mirror 加速;public 仓库已聚合 central,覆盖本项目全部依赖。
+
+  本机开发不读此文件(本机用自己的 ~/.m2/settings.xml,若有)。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <mirrors>
+        <!-- Maven Central 全部走阿里云公共仓库(public 聚合 central/spring/google 等) -->
+        <mirror>
+            <id>aliyun-public</id>
+            <mirrorOf>central</mirrorOf>
+            <name>Aliyun Public Repository</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </mirror>
+    </mirrors>
+</settings>
