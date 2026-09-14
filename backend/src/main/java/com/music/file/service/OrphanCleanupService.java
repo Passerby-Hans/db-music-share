@@ -10,6 +10,8 @@ import com.music.song.entity.Album;
 import com.music.song.entity.Song;
 import com.music.song.mapper.AlbumMapper;
 import com.music.song.mapper.SongMapper;
+import com.music.user.entity.User;
+import com.music.user.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,8 +27,13 @@ import java.util.Set;
  * 孤儿文件扫描清理服务。
  *
  * <p>孤儿 = MinIO 中存在、但不被任何 DB 记录引用的对象。引用集取自全部歌曲的
- * {@code audioPath}/{@code cover} 与全部专辑的 {@code cover}，<b>无视软删</b>
- * （软删记录虽逻辑删除，但本项目删除即同步物理删文件，残留引用按"仍引用"处理，宁可不误删）。</p>
+ * {@code audioPath}/{@code cover}、全部专辑的 {@code cover} 与全部用户的
+ * {@code avatar}，<b>无视软删</b>（软删记录虽逻辑删除，但本项目删除即同步物理删文件，
+ * 残留引用按"仍引用"处理，宁可不误删）。</p>
+ *
+ * <p><b>用户头像必须纳入引用集</b>（评审问题 S-01）：头像与封面物理上共用同一个
+ * 公开桶（仅 {@code avatar/}、{@code cover/} key 前缀不同），若只收集歌曲/专辑的
+ * 引用，头像对象会被误判为孤儿，每日定时清理将物理删除全站头像。</p>
  *
  * <p>仅删除 <b>早于安全期</b>（默认 2h）的无引用对象，避开"上传拿到 key 但尚未建歌"的竞态。
  * 极简方案不依赖临时登记表，靠"无引用 + 够旧"两条件兜底。</p>
@@ -40,13 +47,16 @@ public class OrphanCleanupService {
     private final StorageProperties props;
     private final SongMapper songMapper;
     private final AlbumMapper albumMapper;
+    private final UserMapper userMapper;
 
     public OrphanCleanupService(StorageService storageService, StorageProperties props,
-                                SongMapper songMapper, AlbumMapper albumMapper) {
+                                SongMapper songMapper, AlbumMapper albumMapper,
+                                UserMapper userMapper) {
         this.storageService = storageService;
         this.props = props;
         this.songMapper = songMapper;
         this.albumMapper = albumMapper;
+        this.userMapper = userMapper;
     }
     /**
      * 执行孤儿扫描(可选清理)。
@@ -64,6 +74,11 @@ public class OrphanCleanupService {
         }
         for (Album a : albumMapper.selectList(Wrappers.emptyWrapper())) {
             addIfPresent(coverRefs, a.getCover());
+        }
+        // 用户头像与封面同桶(avatar/ 前缀),必须一并纳入引用集,
+        // 否则头像会被误判为孤儿遭定时清理物理删除(评审问题 S-01)
+        for (User u : userMapper.selectList(Wrappers.emptyWrapper())) {
+            addIfPresent(coverRefs, u.getAvatar());
         }
 
         // 2. 安全期阈值：早于此刻的无引用对象才删
