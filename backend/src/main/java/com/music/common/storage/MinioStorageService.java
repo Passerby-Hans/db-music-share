@@ -10,6 +10,8 @@ import io.minio.messages.Item;
 import io.minio.http.Method;
 import com.music.common.exception.BizException;
 import com.music.common.result.ResultCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,6 +32,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 public class MinioStorageService implements StorageService {
+
+    private static final Logger log = LoggerFactory.getLogger(MinioStorageService.class);
 
     private static final DateTimeFormatter MONTH_PATH = DateTimeFormatter.ofPattern("yyyy/MM");
 
@@ -79,7 +83,9 @@ public class MinioStorageService implements StorageService {
                     .contentType(resolveContentType(bucket, ext))
                     .build());
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "文件上传失败: " + e.getMessage());
+            // 内部细节（端点/桶名/SDK 报错）只进日志，对外固定文案（评审问题 S-06）
+            log.error("文件上传失败: key={}", key, e);
+            throw new BizException(ResultCode.INTERNAL_ERROR, "文件上传失败，请稍后重试");
         }
         return key;
     }
@@ -100,7 +106,8 @@ public class MinioStorageService implements StorageService {
                     .expiry(props.getPresignedExpirySeconds(), TimeUnit.SECONDS)
                     .build());
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "生成播放链接失败: " + e.getMessage());
+            log.error("生成播放链接失败: bucket={}, key={}", bucket, key, e);
+            throw new BizException(ResultCode.INTERNAL_ERROR, "生成播放链接失败，请稍后重试");
         }
     }
     /**
@@ -128,7 +135,8 @@ public class MinioStorageService implements StorageService {
                     .object(key)
                     .build());
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "删除文件失败: " + e.getMessage());
+            log.error("删除文件失败: bucket={}, key={}", bucket, key, e);
+            throw new BizException(ResultCode.INTERNAL_ERROR, "删除文件失败");
         }
     }
 
@@ -150,7 +158,8 @@ public class MinioStorageService implements StorageService {
                 }
             }
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "枚举对象失败: " + e.getMessage());
+            log.error("枚举对象失败: bucket={}", bucket, e);
+            throw new BizException(ResultCode.INTERNAL_ERROR, "枚举对象失败");
         }
         return objects;
     }
