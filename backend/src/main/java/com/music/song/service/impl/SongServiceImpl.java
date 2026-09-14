@@ -3,6 +3,7 @@ package com.music.song.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -44,6 +45,13 @@ public class SongServiceImpl implements SongService {
 
     /** 审核状态：驳回（带驳回理由，前台不可见）。 */
     private static final int AUDIT_REJECTED = 2;
+
+    /**
+     * 专辑名最大长度（对齐 {@code album.album_name VARCHAR(100)}）。
+     * 歌名最长 150 字符而专辑列宽 100，模式③以歌名建缺省专辑时须截断，
+     * 否则超长标题会触发数据库异常（评审问题 S-02）。
+     */
+    private static final int ALBUM_NAME_MAX_LEN = 100;
 
     private final SongMapper songMapper;
     private final AlbumMapper albumMapper;
@@ -94,8 +102,11 @@ public class SongServiceImpl implements SongService {
             // 模式②：当场新建普通专辑
             albumAid = createAlbum(uploaderUid, dto.getNewAlbumName(), false);
         } else {
-            // 模式③：自动生成独立缺省专辑，专辑名取歌名
-            albumAid = createAlbum(uploaderUid, dto.getTitle(), true);
+            // 模式③：自动生成独立缺省专辑，专辑名取歌名（截断至列宽 100，防超长标题触发 DB 异常）
+            String defaultName = dto.getTitle().length() > ALBUM_NAME_MAX_LEN
+                    ? dto.getTitle().substring(0, ALBUM_NAME_MAX_LEN)
+                    : dto.getTitle();
+            albumAid = createAlbum(uploaderUid, defaultName, true);
         }
         // 落库歌曲：待审、未删、点唱数 0
         Song song = new Song();
@@ -130,7 +141,7 @@ public class SongServiceImpl implements SongService {
         } else {
             wrapper.orderByDesc(Song::getSid);
         }
-        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Song> result = songMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
 
@@ -160,14 +171,21 @@ public class SongServiceImpl implements SongService {
                 .eq(Song::getUploaderUid, uploaderUid)
                 .eq(Song::getIsDeleted, false)
                 .orderByDesc(Song::getSid);
-        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Song> result = songMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
     /**
      * 修改歌曲元信息：校验归属后更新。上传者本人改后审核态回退为待审，
      * 管理员改不重置（可信）。
+     *
+     * <p><b>封面语义（评审问题 S-03）</b>：不传 cover（null）= 保持原封面不变——
+     * 与前端"编辑弹窗不回传封面"的现状一致；MyBatis-Plus 默认 NOT_NULL 更新策略
+     * 本就不会把 null 写入该列，二者语义自洽。仅当请求<b>显式携带</b>了新封面
+     * 且与旧值不同时，才物理删除旧封面文件；否则会出现"DB 仍存旧 key、
+     * 文件却已被删"的悬空引用（清空封面场景当前不支持，属遗留语义决策）。</p>
      */
     @Override
+    @Transactional
     public void update(Long operatorUid, Integer operatorRole, Long sid, SongUpdateDTO dto) {
         Song song = getOwnedSong(sid, operatorUid, operatorRole);
         String oldCover = song.getCover();
@@ -181,9 +199,9 @@ public class SongServiceImpl implements SongService {
             song.setAuditRemark(null);
         }
         songMapper.updateById(song);
-        // 封面被换成不同 key 时，删旧封面文件防悬空（音频不在此改，故不动）。
-        // 经延迟删除器：本方法虽无显式事务，cleaner 在无事务时即时删、失败仅记日志兜底
-        if (oldCover != null && !oldCover.equals(dto.getCover())) {
+        // 仅"显式携带新封面且与旧值不同"才删旧文件；事务经延迟删除器在提交后执行，
+        // 回滚则文件保留（音频不在此接口修改，故不动）
+        if (dto.getCover() != null && oldCover != null && !dto.getCover().equals(oldCover)) {
             storageCleaner.deleteAfterCommit(StorageService.BucketType.COVER, oldCover);
         }
     }
@@ -259,7 +277,7 @@ public class SongServiceImpl implements SongService {
                 .eq(Song::getAuditStatus, AUDIT_PENDING)
                 .eq(Song::getIsDeleted, false)
                 .orderByDesc(Song::getSid);
-        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Song> result = songMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
 
@@ -276,7 +294,7 @@ public class SongServiceImpl implements SongService {
         }
         wrapper.orderByDesc(Song::getSid);
         // 注:含软删(管理端全面),不滤 is_deleted
-        IPage<Song> result = songMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Song> result = songMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
 

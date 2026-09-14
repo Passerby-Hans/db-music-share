@@ -3,6 +3,7 @@ package com.music.song.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -90,7 +91,7 @@ public class AlbumServiceImpl implements AlbumService {
         } else {
             wrapper.orderByDesc(Album::getAid);
         }
-        IPage<Album> result = albumMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Album> result = albumMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
 
@@ -127,7 +128,7 @@ public class AlbumServiceImpl implements AlbumService {
                 .eq(Album::getCreatorUid, creatorUid)
                 .eq(Album::getIsDeleted, false)
                 .orderByDesc(Album::getAid);
-        IPage<Album> result = albumMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Album> result = albumMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPageVO(result);
     }
 

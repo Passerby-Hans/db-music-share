@@ -34,6 +34,14 @@ import java.util.Arrays;
  *
  * <p>完全公开的接口（注册/登录/探活）在 WebMvcConfig 注册时通过
  * {@code excludePathPatterns} 排除，根本不进入本拦截器。</p>
+ *
+ * <p><b>ThreadLocal 安全（评审问题 S-26）</b>：Spring 在 preHandle <b>抛异常</b>时
+ * 不会回调该拦截器的 afterCompletion（只回滚此前已成功返回 true 的拦截器），
+ * 因此"先 set 后抛 403/Redis 异常"会让用户态残留在线程上，污染后续
+ * {@code @OptionalAuth} 游客请求（读到上一个请求的身份）。防线有二：
+ * ① {@link UserContext#set} 一律放在<b>所有可能抛异常的操作之后</b>（本方法内
+ * 续期与角色校验都不依赖 UserContext）；② 方法入口先防御性 clear，兜底清理
+ * 任何来源的残留。</p>
  */
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -63,6 +71,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        // 防御性清理：每个请求开始先清残留，杜绝任何来源的线程串号（见类注释 S-26）
+        UserContext.clear();
+
         String sessionId = request.getHeader(TOKEN_HEADER);
 
         // —— 软鉴权分支：标注 @OptionalAuth 的接口允许游客访问 ——
@@ -72,15 +83,16 @@ public class AuthInterceptor implements HandlerInterceptor {
             if (!StringUtils.hasText(sessionId)) {
                 return true;
             }
-            // 带了 token：尝试解析。有效则绑定身份+续期；
-            // 失效/伪造则抛 401——用户曾登录、会话已过期，应提示重新登录，
-            // 而非静默降级为游客（否则其个性化信息如点赞高亮会莫名消失）
+            // 带了 token：尝试解析。失效/伪造则抛 401——用户曾登录、会话已过期，
+            // 应提示重新登录，而非静默降级为游客（否则其个性化信息如点赞高亮会莫名消失）。
+            // 注意顺序：先完成所有可能抛异常的操作（查询、续期），最后才 set 用户态，
+            // 保证 preHandle 抛异常时不会有身份残留在 ThreadLocal 上（S-26）
             LoginUser optionalUser = sessionService.getSession(sessionId);
             if (optionalUser == null) {
                 throw new BizException(ResultCode.UNAUTHORIZED, "登录已过期，请重新登录");
             }
-            UserContext.set(optionalUser);
             sessionService.refreshSession(sessionId);
+            UserContext.set(optionalUser);
             // 软鉴权不做角色校验（允许游客，谈不上角色门槛）
             return true;
         }
@@ -90,13 +102,11 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (loginUser == null) {
             throw new BizException(ResultCode.UNAUTHORIZED, "未登录或登录已过期，请重新登录");
         }
-        // 绑定到当前请求线程，供后续 Service/Controller 取用
-        UserContext.set(loginUser);
-        // 活跃续期：每次有效访问把会话 TTL 重置为 24h
+        // 活跃续期：每次有效访问把会话 TTL 重置为 24h（可能抛异常，须在 set 之前）
         sessionService.refreshSession(sessionId);
 
         // —— 第 2 段：角色校验（仅当目标标注了 @RequireRole）——
-        // 方法级注解优先；方法上没有则看类级注解
+        // 方法级注解优先；方法上没有则看类级注解；直接读 loginUser，不依赖 UserContext
         RequireRole requireRole = handlerMethod.getMethodAnnotation(RequireRole.class);
         if (requireRole == null) {
             requireRole = handlerMethod.getBeanType().getAnnotation(RequireRole.class);
@@ -108,6 +118,9 @@ public class AuthInterceptor implements HandlerInterceptor {
                 throw new BizException(ResultCode.FORBIDDEN, "无权限访问，需要更高角色权限");
             }
         }
+
+        // —— 绑定用户态：放在所有可能抛异常的操作之后（S-26），到达此处请求必然放行 ——
+        UserContext.set(loginUser);
         return true;
     }
 

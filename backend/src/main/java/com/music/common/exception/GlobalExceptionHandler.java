@@ -2,6 +2,8 @@ package com.music.common.exception;
 
 import com.music.common.result.Result;
 import com.music.common.result.ResultCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,6 +19,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * 处理业务异常（预期内错误）。
@@ -64,15 +68,17 @@ public class GlobalExceptionHandler {
     /**
      * 兜底处理所有未捕获的系统异常（非预期错误）。
      *
-     * <p>统一返回 500，避免泄露内部实现细节；具体堆栈打印到服务端日志。</p>
+     * <p>统一返回 500 与固定文案，<b>不回传底层异常信息</b>（评审问题 S-06）：
+     * {@code e.getMessage()} 常含 SQL 片段、约束名、内网端点/桶名等内部细节，
+     * 直接透给客户端即信息泄露；完整堆栈只写服务端日志。</p>
      *
      * @param e 未捕获异常
      * @return 500 失败响应
      */
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
-        // 打印堆栈便于排查；生产可替换为日志框架
-        e.printStackTrace();
-        return Result.error(ResultCode.INTERNAL_ERROR, "服务器内部错误：" + e.getMessage());
+        // 完整异常（含堆栈与内部细节）只进服务端日志，供排查
+        log.error("未捕获异常", e);
+        return Result.error(ResultCode.INTERNAL_ERROR, "服务器内部错误，请稍后重试");
     }
 }

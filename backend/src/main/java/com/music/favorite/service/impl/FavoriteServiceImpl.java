@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -97,7 +98,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         LambdaQueryWrapper<Favorite> wrapper = Wrappers.<Favorite>lambdaQuery()
                 .eq(Favorite::getUid, uid)
                 .orderByDesc(Favorite::getFavTime);
-        IPage<Favorite> result = favoriteMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Favorite> result = favoriteMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Favorite> records = result.getRecords();
 
         // 批量查本页收藏对应的歌曲（含已软删/驳回的），避免逐条查 song
