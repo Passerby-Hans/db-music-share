@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -140,7 +141,7 @@ public class PlaylistServiceImpl implements PlaylistService {
         LambdaQueryWrapper<Playlist> wrapper = Wrappers.<Playlist>lambdaQuery()
                 .eq(Playlist::getUid, uid)
                 .orderByDesc(Playlist::getCreateTime);
-        IPage<Playlist> result = playlistMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Playlist> result = playlistMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Playlist> records = result.getRecords();
 
         // 批量统计本页歌单的曲目数：plid → count
@@ -220,7 +221,7 @@ public class PlaylistServiceImpl implements PlaylistService {
         LambdaQueryWrapper<PlaylistDetail> wrapper = Wrappers.<PlaylistDetail>lambdaQuery()
                 .eq(PlaylistDetail::getPlid, plid)
                 .orderByDesc(PlaylistDetail::getAddTime);
-        IPage<PlaylistDetail> detailPage = playlistDetailMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<PlaylistDetail> detailPage = playlistDetailMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<PlaylistDetail> details = detailPage.getRecords();
 
         Map<Long, Song> songMap = loadSongs(details.stream().map(PlaylistDetail::getSid).toList());

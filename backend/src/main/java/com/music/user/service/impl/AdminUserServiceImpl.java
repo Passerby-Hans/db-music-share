@@ -3,6 +3,7 @@ package com.music.user.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -56,7 +57,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .eq(role != null, User::getRole, role)
                 .eq(status != null, User::getStatus, status)
                 .orderByDesc(User::getUid);
-        IPage<User> result = userMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<User> result = userMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<AdminUserVO> records = result.getRecords().stream().map(AdminUserVO::from).toList();
         return new PageVO<>(records, result.getTotal(), result.getCurrent(), result.getSize());
     }

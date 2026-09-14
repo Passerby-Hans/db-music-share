@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.common.exception.BizException;
 import com.music.common.result.PageVO;
 import com.music.common.result.ResultCode;
@@ -144,7 +145,7 @@ public class RatingServiceImpl implements RatingService {
         LambdaQueryWrapper<Rating> wrapper = Wrappers.<Rating>lambdaQuery()
                 .eq(Rating::getUid, uid)
                 .orderByDesc(Rating::getRateTime);
-        IPage<Rating> result = ratingMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Rating> result = ratingMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Rating> records = result.getRecords();
 
         // 批量查本页评分对应的歌曲（含已软删/驳回的），避免逐条查 song

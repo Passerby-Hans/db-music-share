@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.music.common.result.PageQuery;
 import com.music.comment.dto.CommentCreateDTO;
 import com.music.comment.dto.CommentReplyVO;
 import com.music.comment.dto.CommentVO;
@@ -119,7 +120,7 @@ public class CommentServiceImpl implements CommentService {
                 .eq(Comment::getSid, sid)
                 .isNull(Comment::getParentCid)
                 .orderByDesc(Comment::getCid);
-        IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Comment> result = commentMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
         List<Long> cids = records.stream().map(Comment::getCid).toList();
@@ -160,7 +161,7 @@ public class CommentServiceImpl implements CommentService {
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getParentCid, parentCid)
                 .orderByAsc(Comment::getCid);
-        IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Comment> result = commentMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
         List<Long> cids = records.stream().map(Comment::getCid).toList();
@@ -235,7 +236,7 @@ public class CommentServiceImpl implements CommentService {
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .eq(Comment::getUid, uid)
                 .orderByDesc(Comment::getCid);
-        IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Comment> result = commentMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
         // 仅对其中的主评论(parentCid 为空)查回复数；回复项无需计数
@@ -279,7 +280,7 @@ public class CommentServiceImpl implements CommentService {
         var wrapper = Wrappers.<Comment>lambdaQuery()
                 .like(keyword != null && !keyword.isBlank(), Comment::getContent, keyword)
                 .orderByDesc(Comment::getCid);
-        IPage<Comment> result = commentMapper.selectPage(new Page<>(page, size), wrapper);
+        IPage<Comment> result = commentMapper.selectPage(PageQuery.of(page, size), wrapper);
         List<Comment> records = result.getRecords();
 
         // 仅对其中的主评论(parentCid 为空)查回复数;回复项无下级无需计数
